@@ -98,6 +98,27 @@ claude
 npm run desktop
 ```
 
+如果您不想用终端，现在也可以直接启动一个简单的 Windows 桌面 GUI：
+
+```bash
+npm run gui
+```
+
+或者直接双击：
+
+```text
+scripts/start-metaagent-pc-gui.cmd
+```
+
+这个 GUI 是原生 WinForms 窗口，不是 Web 页面。当前提供的能力是：
+
+- 配置 `host / port / token`
+- 启动和停止桌面控制服务
+- 一键健康检查
+- 复制接口地址
+- 查看实时日志
+- 打开项目目录
+
 如果您希望自定义监听地址、端口和鉴权 token，先在 `.env` 中配置：
 
 ```bash
