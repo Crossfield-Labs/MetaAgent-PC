@@ -3,10 +3,17 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import {
   captureDesktopScreenshot,
   clickMouse,
+  dragMouse,
+  getClipboardText,
   getDesktopCapabilities,
+  getDesktopSystemInfo,
+  listDesktopWindows,
   launchApp,
   moveMouse,
   pressKey,
+  pressHotkey,
+  scrollMouse,
+  setClipboardText,
   sendText,
 } from './desktop-control.js';
 import {
@@ -56,6 +63,27 @@ interface KeyRequest {
 interface LaunchRequest {
   command: string;
   args?: string[];
+}
+
+interface MouseDragRequest {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  button?: 'left' | 'right' | 'middle';
+  steps?: number;
+}
+
+interface ScrollRequest {
+  delta: number;
+}
+
+interface HotkeyRequest {
+  keys: string[];
+}
+
+interface ClipboardTextRequest {
+  text: string;
 }
 
 interface OpenDesktopSessionRequest {
@@ -183,6 +211,35 @@ export function startDesktopRemoteApi(): Promise<Server> {
           sendJson(res, 200, {
             ok: true,
             data: getDesktopCapabilities(),
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/system/info') {
+          const info = await getDesktopSystemInfo();
+          sendJson(res, 200, {
+            ok: true,
+            data: info,
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/windows') {
+          const windows = await listDesktopWindows();
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              windows,
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/clipboard') {
+          const clipboard = await getClipboardText();
+          sendJson(res, 200, {
+            ok: true,
+            data: clipboard,
           });
           return;
         }
@@ -383,6 +440,52 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
+        if (method === 'POST' && url.pathname === '/api/desktop/input/drag') {
+          const body = await readJsonBody<MouseDragRequest>(req);
+          if (
+            !body ||
+            typeof body.fromX !== 'number' ||
+            typeof body.fromY !== 'number' ||
+            typeof body.toX !== 'number' ||
+            typeof body.toY !== 'number'
+          ) {
+            sendJson(res, 400, { ok: false, error: 'Missing from/to coordinates' });
+            return;
+          }
+          const result = await dragMouse(
+            body.fromX,
+            body.fromY,
+            body.toX,
+            body.toY,
+            body.button || 'left',
+            body.steps,
+          );
+          publishDesktopEvent('desktop.input.drag', {
+            fromX: body.fromX,
+            fromY: body.fromY,
+            toX: body.toX,
+            toY: body.toY,
+            button: body.button || 'left',
+            steps: body.steps ?? 12,
+          });
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/scroll') {
+          const body = await readJsonBody<ScrollRequest>(req);
+          if (!body || typeof body.delta !== 'number') {
+            sendJson(res, 400, { ok: false, error: 'Missing delta' });
+            return;
+          }
+          const result = await scrollMouse(body.delta);
+          publishDesktopEvent('desktop.input.scroll', {
+            delta: body.delta,
+          });
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
         if (method === 'POST' && url.pathname === '/api/desktop/input/type') {
           const body = await readJsonBody<TextRequest>(req);
           if (!body?.text) {
@@ -411,6 +514,20 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
+        if (method === 'POST' && url.pathname === '/api/desktop/input/hotkey') {
+          const body = await readJsonBody<HotkeyRequest>(req);
+          if (!body || !Array.isArray(body.keys) || body.keys.length === 0) {
+            sendJson(res, 400, { ok: false, error: 'Missing keys' });
+            return;
+          }
+          const result = await pressHotkey(body.keys);
+          publishDesktopEvent('desktop.input.hotkey', {
+            keys: body.keys,
+          });
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
         if (method === 'POST' && url.pathname === '/api/desktop/app/launch') {
           const body = await readJsonBody<LaunchRequest>(req);
           if (!body?.command) {
@@ -421,6 +538,20 @@ export function startDesktopRemoteApi(): Promise<Server> {
           publishDesktopEvent('desktop.app.launch', {
             command: body.command,
             args: body.args || [],
+          });
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/clipboard') {
+          const body = await readJsonBody<ClipboardTextRequest>(req);
+          if (!body || typeof body.text !== 'string') {
+            sendJson(res, 400, { ok: false, error: 'Missing text' });
+            return;
+          }
+          const result = await setClipboardText(body.text);
+          publishDesktopEvent('desktop.clipboard.set', {
+            length: body.text.length,
           });
           sendJson(res, 200, { ok: true, data: result });
           return;

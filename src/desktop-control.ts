@@ -7,6 +7,9 @@ export interface DesktopCapabilities {
   supportsMouse: boolean;
   supportsKeyboard: boolean;
   supportsAppLaunch: boolean;
+  supportsClipboard: boolean;
+  supportsWindowListing: boolean;
+  supportsSystemInfo: boolean;
   reason?: string;
 }
 
@@ -20,6 +23,32 @@ export interface DesktopScreenshot {
 export interface DesktopOperationResult {
   ok: boolean;
   message: string;
+}
+
+export interface DesktopDisplayInfo {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  primary: boolean;
+  deviceName?: string;
+}
+
+export interface DesktopSystemInfo {
+  hostname: string;
+  username: string;
+  platform: NodeJS.Platform;
+  release: string;
+  arch: string;
+  cpuModel: string;
+  displayCount: number;
+  displays: DesktopDisplayInfo[];
+}
+
+export interface DesktopWindowInfo {
+  processName: string;
+  title: string;
+  pid: number;
 }
 
 type MouseButton = 'left' | 'right' | 'middle';
@@ -41,6 +70,9 @@ function unsupportedCapabilities(reason: string): DesktopCapabilities {
     supportsMouse: false,
     supportsKeyboard: false,
     supportsAppLaunch: false,
+    supportsClipboard: false,
+    supportsWindowListing: false,
+    supportsSystemInfo: false,
     reason,
   };
 }
@@ -56,6 +88,9 @@ export function getDesktopCapabilities(): DesktopCapabilities {
     supportsMouse: true,
     supportsKeyboard: true,
     supportsAppLaunch: true,
+    supportsClipboard: true,
+    supportsWindowListing: true,
+    supportsSystemInfo: true,
   };
 }
 
@@ -63,11 +98,17 @@ async function runPowerShell(script: string): Promise<string> {
   if (process.platform !== 'win32') {
     throw new Error('Desktop control currently supports Windows only');
   }
+  const wrappedScript = `
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+${script}
+`.trim();
 
   return new Promise((resolve, reject) => {
     const child = spawn(
       'powershell',
-      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script],
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', wrappedScript],
       { windowsHide: true },
     );
 
@@ -179,6 +220,62 @@ Write-Output '{"ok":true,"message":"Mouse clicked"}'
   return { ok: true, message: `Mouse ${button} clicked` };
 }
 
+export async function dragMouse(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  button: MouseButton = 'left',
+  steps = 12,
+): Promise<DesktopOperationResult> {
+  const flags = WINDOWS_MOUSE_FLAGS[button];
+  const totalSteps = Math.max(2, Math.min(60, Math.round(steps)));
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopMouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+"@
+$fromX = ${Math.round(fromX)}
+$fromY = ${Math.round(fromY)}
+$toX = ${Math.round(toX)}
+$toY = ${Math.round(toY)}
+$steps = ${totalSteps}
+[DesktopMouse]::SetCursorPos($fromX, $fromY) | Out-Null
+[DesktopMouse]::mouse_event(${flags.down}, 0, 0, 0, [UIntPtr]::Zero)
+for ($i = 1; $i -le $steps; $i++) {
+  $x = [int]($fromX + (($toX - $fromX) * $i / $steps))
+  $y = [int]($fromY + (($toY - $fromY) * $i / $steps))
+  [DesktopMouse]::SetCursorPos($x, $y) | Out-Null
+  Start-Sleep -Milliseconds 12
+}
+[DesktopMouse]::mouse_event(${flags.up}, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output '{"ok":true,"message":"Mouse dragged"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: `Mouse ${button} dragged` };
+}
+
+export async function scrollMouse(delta: number): Promise<DesktopOperationResult> {
+  const amount = Math.round(delta);
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopMouse {
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, int data, UIntPtr extraInfo);
+}
+"@
+[DesktopMouse]::mouse_event(0x0800, 0, 0, ${amount}, [UIntPtr]::Zero)
+Write-Output '{"ok":true,"message":"Mouse scrolled"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: `Mouse scrolled: ${amount}` };
+}
+
 export async function sendText(text: string): Promise<DesktopOperationResult> {
   const encoded = textToBase64(text);
   const script = `
@@ -223,6 +320,53 @@ Write-Output '{"ok":true,"message":"Key pressed"}'
   return { ok: true, message: `Key pressed: ${key}` };
 }
 
+export async function pressHotkey(keys: string[]): Promise<DesktopOperationResult> {
+  const normalized = keys
+    .map((key) => key.trim().toUpperCase())
+    .filter((key) => key.length > 0);
+  if (normalized.length === 0) {
+    return { ok: false, message: 'No keys provided' };
+  }
+
+  const modifierMap: Record<string, string> = {
+    CTRL: '^',
+    CONTROL: '^',
+    SHIFT: '+',
+    ALT: '%',
+  };
+  const keyMap: Record<string, string> = {
+    ENTER: '{ENTER}',
+    TAB: '{TAB}',
+    ESC: '{ESC}',
+    ESCAPE: '{ESC}',
+    DELETE: '{DELETE}',
+    BACKSPACE: '{BACKSPACE}',
+    UP: '{UP}',
+    DOWN: '{DOWN}',
+    LEFT: '{LEFT}',
+    RIGHT: '{RIGHT}',
+    HOME: '{HOME}',
+    END: '{END}',
+    SPACE: ' ',
+  };
+
+  const modifiers = normalized
+    .slice(0, -1)
+    .map((key) => modifierMap[key] || '')
+    .join('');
+  const lastKey = normalized[normalized.length - 1];
+  const sendKeysSequence = `${modifiers}${keyMap[lastKey] || lastKey}`;
+  const encoded = textToBase64(sendKeysSequence);
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$sequence = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}'))
+[System.Windows.Forms.SendKeys]::SendWait($sequence)
+Write-Output '{"ok":true,"message":"Hotkey pressed"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: `Hotkey pressed: ${normalized.join('+')}` };
+}
+
 export async function launchApp(
   command: string,
   args: string[] = [],
@@ -237,4 +381,83 @@ Write-Output '{"ok":true,"message":"App launched"}'
 `.trim();
   await runPowerShell(script);
   return { ok: true, message: `App launched: ${command}` };
+}
+
+export async function getClipboardText(): Promise<{ text: string }> {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$text = [System.Windows.Forms.Clipboard]::GetText()
+$payload = @{ text = $text } | ConvertTo-Json -Compress
+Write-Output $payload
+`.trim();
+  const output = await runPowerShell(script);
+  return JSON.parse(output) as { text: string };
+}
+
+export async function setClipboardText(text: string): Promise<DesktopOperationResult> {
+  const encoded = textToBase64(text);
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}'))
+[System.Windows.Forms.Clipboard]::SetText($value)
+Write-Output '{"ok":true,"message":"Clipboard updated"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: 'Clipboard updated' };
+}
+
+export async function getDesktopSystemInfo(): Promise<DesktopSystemInfo> {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$screens = @([System.Windows.Forms.Screen]::AllScreens | ForEach-Object {
+  @{
+    left = $_.Bounds.Left
+    top = $_.Bounds.Top
+    width = $_.Bounds.Width
+    height = $_.Bounds.Height
+    primary = $_.Primary
+    deviceName = $_.DeviceName
+  }
+})
+$cpu = (Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty Name)
+$payload = @{
+  hostname = $env:COMPUTERNAME
+  username = $env:USERNAME
+  release = [System.Environment]::OSVersion.Version.ToString()
+  arch = $env:PROCESSOR_ARCHITECTURE
+  cpuModel = $cpu
+  displayCount = $screens.Count
+  displays = $screens
+} | ConvertTo-Json -Compress -Depth 4
+Write-Output $payload
+`.trim();
+  const output = await runPowerShell(script);
+  const parsed = JSON.parse(output) as Omit<DesktopSystemInfo, 'platform'> & {
+    displays: DesktopDisplayInfo | DesktopDisplayInfo[];
+  };
+  return {
+    ...parsed,
+    platform: process.platform,
+    displays: Array.isArray(parsed.displays) ? parsed.displays : [parsed.displays],
+  };
+}
+
+export async function listDesktopWindows(): Promise<DesktopWindowInfo[]> {
+  const script = `
+$windows = Get-Process | Where-Object { $_.MainWindowTitle -and $_.MainWindowTitle.Trim().Length -gt 0 } | Select-Object ProcessName, MainWindowTitle, Id
+$payload = $windows | ForEach-Object {
+  @{
+    processName = $_.ProcessName
+    title = $_.MainWindowTitle
+    pid = $_.Id
+  }
+} | ConvertTo-Json -Compress
+Write-Output $payload
+`.trim();
+  const output = await runPowerShell(script);
+  if (!output) {
+    return [];
+  }
+  const parsed = JSON.parse(output) as DesktopWindowInfo | DesktopWindowInfo[];
+  return Array.isArray(parsed) ? parsed : [parsed];
 }

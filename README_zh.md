@@ -119,12 +119,19 @@ DESKTOP_REMOTE_SESSION_TIMEOUT_MS=120000
 - `GET /api/desktop/events/stream`
 - `GET /api/desktop/health`
 - `GET /api/desktop/capabilities`
+- `GET /api/desktop/system/info`
+- `GET /api/desktop/windows`
+- `GET /api/desktop/clipboard`
 - `GET /api/desktop/screenshot`
 - `POST /api/desktop/input/move`
 - `POST /api/desktop/input/click`
+- `POST /api/desktop/input/drag`
+- `POST /api/desktop/input/scroll`
 - `POST /api/desktop/input/type`
 - `POST /api/desktop/input/key`
+- `POST /api/desktop/input/hotkey`
 - `POST /api/desktop/app/launch`
+- `POST /api/desktop/clipboard`
 - `GET /api/desktop/remote-control/session`
 - `POST /api/desktop/remote-control/start`
 - `POST /api/desktop/remote-control/stop`
@@ -136,6 +143,13 @@ DESKTOP_REMOTE_SESSION_TIMEOUT_MS=120000
 3. 通过 `GET /api/desktop/events` 或 `GET /api/desktop/events/stream` 拉取状态变化
 4. 再调用 `screenshot/input/app` 这些真实桌面控制接口
 5. 结束时调用 `POST /api/desktop/session/close`
+
+当前已经适合做手机端壳的能力：
+
+- 屏幕读取：截图、显示器信息、窗口列表
+- 输入控制：移动、点击、拖拽、滚轮、文本输入、单键、组合键
+- 桌面状态：控制会话、事件流、剪贴板读写
+- 进程入口：启动本地应用
 
 推荐做法：
 

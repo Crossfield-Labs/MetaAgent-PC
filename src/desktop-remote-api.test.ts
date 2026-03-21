@@ -14,11 +14,18 @@ const mockConfig = {
 
 const captureDesktopScreenshotMock = vi.fn();
 const clickMouseMock = vi.fn();
+const dragMouseMock = vi.fn();
+const getClipboardTextMock = vi.fn();
 const getDesktopCapabilitiesMock = vi.fn();
+const getDesktopSystemInfoMock = vi.fn();
 const launchAppMock = vi.fn();
+const listDesktopWindowsMock = vi.fn();
 const moveMouseMock = vi.fn();
 const pressKeyMock = vi.fn();
+const pressHotkeyMock = vi.fn();
+const scrollMouseMock = vi.fn();
 const getActiveSessionMock = vi.fn();
+const setClipboardTextMock = vi.fn();
 const sendTextMock = vi.fn();
 const startRemoteControlMock = vi.fn();
 const stopRemoteControlMock = vi.fn();
@@ -48,11 +55,18 @@ vi.mock('./desktop-control.js', () => ({
   captureDesktopScreenshot: (...args: unknown[]) =>
     captureDesktopScreenshotMock(...args),
   clickMouse: (...args: unknown[]) => clickMouseMock(...args),
+  dragMouse: (...args: unknown[]) => dragMouseMock(...args),
+  getClipboardText: (...args: unknown[]) => getClipboardTextMock(...args),
   getDesktopCapabilities: (...args: unknown[]) =>
     getDesktopCapabilitiesMock(...args),
+  getDesktopSystemInfo: (...args: unknown[]) => getDesktopSystemInfoMock(...args),
+  listDesktopWindows: (...args: unknown[]) => listDesktopWindowsMock(...args),
   launchApp: (...args: unknown[]) => launchAppMock(...args),
   moveMouse: (...args: unknown[]) => moveMouseMock(...args),
   pressKey: (...args: unknown[]) => pressKeyMock(...args),
+  pressHotkey: (...args: unknown[]) => pressHotkeyMock(...args),
+  scrollMouse: (...args: unknown[]) => scrollMouseMock(...args),
+  setClipboardText: (...args: unknown[]) => setClipboardTextMock(...args),
   sendText: (...args: unknown[]) => sendTextMock(...args),
 }));
 
@@ -109,12 +123,19 @@ describe('desktop-remote-api', () => {
     getActiveSessionMock.mockReset();
     captureDesktopScreenshotMock.mockReset();
     clickMouseMock.mockReset();
+    dragMouseMock.mockReset();
+    getClipboardTextMock.mockReset();
     getDesktopCapabilitiesMock.mockReset();
+    getDesktopSystemInfoMock.mockReset();
     launchAppMock.mockReset();
+    listDesktopWindowsMock.mockReset();
     moveMouseMock.mockReset();
     pressKeyMock.mockReset();
+    pressHotkeyMock.mockReset();
+    scrollMouseMock.mockReset();
     startRemoteControlMock.mockReset();
     stopRemoteControlMock.mockReset();
+    setClipboardTextMock.mockReset();
     sendTextMock.mockReset();
     resetDesktopSessionManagerForTests();
     getActiveSessionMock.mockReturnValue(null);
@@ -125,7 +146,33 @@ describe('desktop-remote-api', () => {
       supportsMouse: true,
       supportsKeyboard: true,
       supportsAppLaunch: true,
+      supportsClipboard: true,
+      supportsWindowListing: true,
+      supportsSystemInfo: true,
     });
+    getDesktopSystemInfoMock.mockResolvedValue({
+      hostname: 'metaagent-pc',
+      username: 'tester',
+      platform: 'win32',
+      release: '10.0.26100.0',
+      arch: 'AMD64',
+      cpuModel: 'Test CPU',
+      displayCount: 1,
+      displays: [
+        {
+          left: 0,
+          top: 0,
+          width: 1920,
+          height: 1080,
+          primary: true,
+          deviceName: '\\\\.\\DISPLAY1',
+        },
+      ],
+    });
+    listDesktopWindowsMock.mockResolvedValue([
+      { processName: 'Code', title: 'MetaAgent-PC', pid: 1001 },
+    ]);
+    getClipboardTextMock.mockResolvedValue({ text: 'clipboard value' });
 
     server = await startDesktopRemoteApi();
     port = (server.address() as AddressInfo).port;
@@ -312,8 +359,43 @@ describe('desktop-remote-api', () => {
         supportsMouse: true,
         supportsKeyboard: true,
         supportsAppLaunch: true,
+        supportsClipboard: true,
+        supportsWindowListing: true,
+        supportsSystemInfo: true,
       },
     });
+  });
+
+  it('returns system info', async () => {
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/system/info',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).data.hostname).toBe('metaagent-pc');
+  });
+
+  it('returns windows list', async () => {
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/windows',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).data.windows).toEqual([
+      { processName: 'Code', title: 'MetaAgent-PC', pid: 1001 },
+    ]);
+  });
+
+  it('gets clipboard text', async () => {
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/clipboard',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).data).toEqual({ text: 'clipboard value' });
   });
 
   it('returns desktop screenshot payload', async () => {
@@ -467,6 +549,44 @@ describe('desktop-remote-api', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  it('drags mouse through desktop control endpoint', async () => {
+    dragMouseMock.mockResolvedValue({ ok: true, message: 'Mouse dragged' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/drag',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ fromX: 1, fromY: 2, toX: 300, toY: 400, button: 'left', steps: 8 }),
+    );
+
+    expect(dragMouseMock).toHaveBeenCalledWith(1, 2, 300, 400, 'left', 8);
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('scrolls mouse through desktop control endpoint', async () => {
+    scrollMouseMock.mockResolvedValue({ ok: true, message: 'Mouse scrolled' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/scroll',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ delta: -120 }),
+    );
+
+    expect(scrollMouseMock).toHaveBeenCalledWith(-120);
+    expect(response.statusCode).toBe(200);
+  });
+
   it('presses key through desktop control endpoint', async () => {
     pressKeyMock.mockResolvedValue({ ok: true, message: 'Key pressed' });
 
@@ -486,6 +606,25 @@ describe('desktop-remote-api', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  it('presses hotkey through desktop control endpoint', async () => {
+    pressHotkeyMock.mockResolvedValue({ ok: true, message: 'Hotkey pressed' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/hotkey',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ keys: ['CTRL', 'SHIFT', 'P'] }),
+    );
+
+    expect(pressHotkeyMock).toHaveBeenCalledWith(['CTRL', 'SHIFT', 'P']);
+    expect(response.statusCode).toBe(200);
+  });
+
   it('launches app through desktop control endpoint', async () => {
     launchAppMock.mockResolvedValue({ ok: true, message: 'App launched' });
 
@@ -502,6 +641,25 @@ describe('desktop-remote-api', () => {
     );
 
     expect(launchAppMock).toHaveBeenCalledWith('notepad.exe', ['test.txt']);
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('sets clipboard text through desktop control endpoint', async () => {
+    setClipboardTextMock.mockResolvedValue({ ok: true, message: 'Clipboard updated' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/clipboard',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ text: 'new clipboard text' }),
+    );
+
+    expect(setClipboardTextMock).toHaveBeenCalledWith('new clipboard text');
     expect(response.statusCode).toBe(200);
   });
 
