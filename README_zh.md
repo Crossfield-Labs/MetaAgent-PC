@@ -104,12 +104,19 @@ npm run desktop
 DESKTOP_REMOTE_API_HOST=0.0.0.0
 DESKTOP_REMOTE_API_PORT=3210
 DESKTOP_REMOTE_API_TOKEN=replace-with-a-secret
+DESKTOP_REMOTE_SESSION_TIMEOUT_MS=120000
 ```
 
 这个独立服务只暴露桌面控制 HTTP API，不会去初始化消息渠道、容器或 Claude 会话。
 
 启动后会额外暴露这些接口：
 
+- `POST /api/desktop/session/open`
+- `GET /api/desktop/session`
+- `POST /api/desktop/session/heartbeat`
+- `POST /api/desktop/session/close`
+- `GET /api/desktop/events`
+- `GET /api/desktop/events/stream`
 - `GET /api/desktop/health`
 - `GET /api/desktop/capabilities`
 - `GET /api/desktop/screenshot`
@@ -122,10 +129,19 @@ DESKTOP_REMOTE_API_TOKEN=replace-with-a-secret
 - `POST /api/desktop/remote-control/start`
 - `POST /api/desktop/remote-control/stop`
 
+推荐手机端接入顺序：
+
+1. `POST /api/desktop/session/open` 创建控制会话
+2. 周期性调用 `POST /api/desktop/session/heartbeat` 保活
+3. 通过 `GET /api/desktop/events` 或 `GET /api/desktop/events/stream` 拉取状态变化
+4. 再调用 `screenshot/input/app` 这些真实桌面控制接口
+5. 结束时调用 `POST /api/desktop/session/close`
+
 推荐做法：
 
 - 仅在局域网内使用
 - 始终设置 `DESKTOP_REMOTE_API_TOKEN`
+- 手机端拿到 `sessionId` 后，持续做 heartbeat，避免控制会话过期
 - 手机端优先调用这层 API 做真实桌面操作，不直接操作本地进程
 - `remote-control/start` 仍然只是可选的 Claude 会话入口；没有 Claude API 时，直接忽略这组接口
 - 真正的本地桌面控制走 `screenshot/input/app` 这些接口

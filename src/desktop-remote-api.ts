@@ -19,6 +19,15 @@ import {
   startRemoteControl,
   stopRemoteControl,
 } from './remote-control.js';
+import {
+  closeDesktopSession,
+  getActiveDesktopSession,
+  heartbeatDesktopSession,
+  listDesktopEvents,
+  openDesktopSession,
+  publishDesktopEvent,
+  subscribeDesktopEvents,
+} from './desktop-session-manager.js';
 import { logger } from './logger.js';
 
 interface StartRequest {
@@ -47,6 +56,18 @@ interface KeyRequest {
 interface LaunchRequest {
   command: string;
   args?: string[];
+}
+
+interface OpenDesktopSessionRequest {
+  clientName?: string;
+}
+
+interface HeartbeatRequest {
+  sessionId?: string;
+}
+
+interface CloseSessionRequest {
+  sessionId?: string;
 }
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -110,6 +131,24 @@ function serializeSession() {
     : null;
 }
 
+function serializeDesktopControlSession() {
+  const session = getActiveDesktopSession();
+  return session
+    ? {
+        id: session.id,
+        clientName: session.clientName,
+        openedAt: session.openedAt,
+        lastSeenAt: session.lastSeenAt,
+        expiresAt: session.expiresAt,
+      }
+    : null;
+}
+
+function sendSseEvent(res: ServerResponse, event: string, payload: unknown): void {
+  res.write(`event: ${event}\n`);
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
 export function startDesktopRemoteApi(): Promise<Server> {
   return new Promise((resolve, reject) => {
     const server = createServer(async (req, res) => {
@@ -133,6 +172,7 @@ export function startDesktopRemoteApi(): Promise<Server> {
             data: {
               service: 'nanoclaw-desktop-remote',
               hasActiveSession: getActiveSession() !== null,
+              hasDesktopSession: getActiveDesktopSession() !== null,
               apiVersion: 1,
             },
           });
@@ -143,6 +183,104 @@ export function startDesktopRemoteApi(): Promise<Server> {
           sendJson(res, 200, {
             ok: true,
             data: getDesktopCapabilities(),
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/session/open') {
+          const body = (await readJsonBody<OpenDesktopSessionRequest>(req)) || {};
+          const session = openDesktopSession({ clientName: body.clientName });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session: serializeDesktopControlSession(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/session') {
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session: serializeDesktopControlSession(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/session/heartbeat') {
+          const body = (await readJsonBody<HeartbeatRequest>(req)) || {};
+          const session = heartbeatDesktopSession({ sessionId: body.sessionId });
+          if (!session) {
+            sendJson(res, 404, { ok: false, error: 'No active desktop session' });
+            return;
+          }
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session: serializeDesktopControlSession(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/session/close') {
+          const body = (await readJsonBody<CloseSessionRequest>(req)) || {};
+          const closed = closeDesktopSession(body.sessionId);
+          if (!closed) {
+            sendJson(res, 404, { ok: false, error: 'No active desktop session' });
+            return;
+          }
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              closed: true,
+              session: null,
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/events') {
+          const limit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              events: listDesktopEvents(Number.isFinite(limit) ? limit : 20),
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/events/stream') {
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          });
+          sendSseEvent(res, 'ready', {
+            ok: true,
+            session: serializeDesktopControlSession(),
+          });
+          for (const event of listDesktopEvents(10)) {
+            sendSseEvent(res, 'desktop-event', event);
+          }
+
+          const unsubscribe = subscribeDesktopEvents((event) => {
+            sendSseEvent(res, 'desktop-event', event);
+          });
+          const keepAlive = setInterval(() => {
+            res.write(': keep-alive\n\n');
+          }, 15000);
+
+          req.on('close', () => {
+            clearInterval(keepAlive);
+            unsubscribe();
+            res.end();
           });
           return;
         }
@@ -165,6 +303,11 @@ export function startDesktopRemoteApi(): Promise<Server> {
             body.cwd || process.cwd(),
           );
           if (result.ok) {
+            publishDesktopEvent('remote-control.started', {
+              startedBy: body.sender || 'phone-ui',
+              startedInChat: body.chatJid || 'phone-ui',
+              url: result.url,
+            });
             sendJson(res, 200, {
               ok: true,
               data: {
@@ -181,6 +324,7 @@ export function startDesktopRemoteApi(): Promise<Server> {
         if (method === 'POST' && url.pathname === '/api/desktop/remote-control/stop') {
           const result = stopRemoteControl();
           if (result.ok) {
+            publishDesktopEvent('remote-control.stopped', {});
             sendJson(res, 200, {
               ok: true,
               data: {
@@ -196,6 +340,11 @@ export function startDesktopRemoteApi(): Promise<Server> {
 
         if (method === 'GET' && url.pathname === '/api/desktop/screenshot') {
           const screenshot = await captureDesktopScreenshot();
+          publishDesktopEvent('desktop.screenshot', {
+            width: screenshot.width,
+            height: screenshot.height,
+            mimeType: screenshot.mimeType,
+          });
           sendJson(res, 200, {
             ok: true,
             data: screenshot,
@@ -210,6 +359,10 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
           const result = await moveMouse(body.x, body.y);
+          publishDesktopEvent('desktop.input.move', {
+            x: body.x,
+            y: body.y,
+          });
           sendJson(res, 200, { ok: true, data: result });
           return;
         }
@@ -221,6 +374,11 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
           const result = await clickMouse(body.x, body.y, body.button || 'left');
+          publishDesktopEvent('desktop.input.click', {
+            x: body.x,
+            y: body.y,
+            button: body.button || 'left',
+          });
           sendJson(res, 200, { ok: true, data: result });
           return;
         }
@@ -232,6 +390,9 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
           const result = await sendText(body.text);
+          publishDesktopEvent('desktop.input.type', {
+            length: body.text.length,
+          });
           sendJson(res, 200, { ok: true, data: result });
           return;
         }
@@ -243,6 +404,9 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
           const result = await pressKey(body.key);
+          publishDesktopEvent('desktop.input.key', {
+            key: body.key,
+          });
           sendJson(res, 200, { ok: true, data: result });
           return;
         }
@@ -254,6 +418,10 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
           const result = await launchApp(body.command, body.args || []);
+          publishDesktopEvent('desktop.app.launch', {
+            command: body.command,
+            args: body.args || [],
+          });
           sendJson(res, 200, { ok: true, data: result });
           return;
         }

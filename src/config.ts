@@ -59,6 +59,10 @@ export const DESKTOP_REMOTE_API_HOST =
   process.env.DESKTOP_REMOTE_API_HOST || '0.0.0.0';
 export const DESKTOP_REMOTE_API_TOKEN =
   process.env.DESKTOP_REMOTE_API_TOKEN || '';
+export const DESKTOP_REMOTE_SESSION_TIMEOUT_MS = parseInt(
+  process.env.DESKTOP_REMOTE_SESSION_TIMEOUT_MS || '120000',
+  10,
+);
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(

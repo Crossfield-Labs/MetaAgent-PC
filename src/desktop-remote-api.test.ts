@@ -1,11 +1,15 @@
 import http from 'http';
 import type { AddressInfo } from 'net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  resetDesktopSessionManagerForTests,
+} from './desktop-session-manager.js';
 
 const mockConfig = {
   DESKTOP_REMOTE_API_HOST: '127.0.0.1',
   DESKTOP_REMOTE_API_PORT: 0,
   DESKTOP_REMOTE_API_TOKEN: '',
+  DESKTOP_REMOTE_SESSION_TIMEOUT_MS: 120000,
 };
 
 const captureDesktopScreenshotMock = vi.fn();
@@ -28,6 +32,9 @@ vi.mock('./config.js', () => ({
   },
   get DESKTOP_REMOTE_API_TOKEN() {
     return mockConfig.DESKTOP_REMOTE_API_TOKEN;
+  },
+  get DESKTOP_REMOTE_SESSION_TIMEOUT_MS() {
+    return mockConfig.DESKTOP_REMOTE_SESSION_TIMEOUT_MS;
   },
 }));
 
@@ -109,6 +116,7 @@ describe('desktop-remote-api', () => {
     startRemoteControlMock.mockReset();
     stopRemoteControlMock.mockReset();
     sendTextMock.mockReset();
+    resetDesktopSessionManagerForTests();
     getActiveSessionMock.mockReturnValue(null);
     getDesktopCapabilitiesMock.mockReturnValue({
       platform: 'win32',
@@ -139,9 +147,124 @@ describe('desktop-remote-api', () => {
       data: {
         service: 'nanoclaw-desktop-remote',
         hasActiveSession: false,
+        hasDesktopSession: false,
         apiVersion: 1,
       },
     });
+  });
+
+  it('opens and returns desktop control session', async () => {
+    const openResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/session/open',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ clientName: 'android-debug' }),
+    );
+
+    const openPayload = JSON.parse(openResponse.body);
+    expect(openResponse.statusCode).toBe(200);
+    expect(openPayload.ok).toBe(true);
+    expect(openPayload.data.session.clientName).toBe('android-debug');
+    expect(openPayload.data.session.id).toBeTruthy();
+
+    const getResponse = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/session',
+    });
+    const getPayload = JSON.parse(getResponse.body);
+    expect(getResponse.statusCode).toBe(200);
+    expect(getPayload.data.session.id).toBe(openPayload.data.session.id);
+  });
+
+  it('heartbeats and closes desktop control session', async () => {
+    const openResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/session/open',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ clientName: 'android-debug' }),
+    );
+    const sessionId = JSON.parse(openResponse.body).data.session.id;
+
+    const heartbeatResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/session/heartbeat',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ sessionId }),
+    );
+    expect(heartbeatResponse.statusCode).toBe(200);
+    expect(JSON.parse(heartbeatResponse.body).data.session.id).toBe(sessionId);
+
+    const closeResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/session/close',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ sessionId }),
+    );
+    expect(closeResponse.statusCode).toBe(200);
+    expect(JSON.parse(closeResponse.body)).toEqual({
+      ok: true,
+      data: {
+        closed: true,
+        session: null,
+      },
+    });
+  });
+
+  it('returns recent desktop events after operations', async () => {
+    moveMouseMock.mockResolvedValue({ ok: true, message: 'Mouse moved' });
+
+    await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/session/open',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ clientName: 'android-debug' }),
+    );
+    await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/move',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ x: 123, y: 456 }),
+    );
+
+    const eventsResponse = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/events?limit=5',
+    });
+    const payload = JSON.parse(eventsResponse.body);
+    expect(eventsResponse.statusCode).toBe(200);
+    expect(payload.ok).toBe(true);
+    expect(payload.data.events.some((event: { type: string }) => event.type === 'session.opened')).toBe(true);
+    expect(payload.data.events.some((event: { type: string }) => event.type === 'desktop.input.move')).toBe(true);
   });
 
   it('returns active session snapshot', async () => {
