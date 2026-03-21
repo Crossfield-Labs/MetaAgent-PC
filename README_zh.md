@@ -81,7 +81,13 @@ claude
 
 ## 手机控制电脑
 
-如果您想让手机直接控制运行中的 NanoClaw，可以启用内置的桌面控制 API：
+如果您的目标只是“让手机控制这台电脑”，现在不需要 Claude API，也不需要先启动完整的 NanoClaw 主进程。可以直接启动独立的桌面控制服务：
+
+```bash
+npm run desktop
+```
+
+如果您希望自定义监听地址、端口和鉴权 token，先在 `.env` 中配置：
 
 ```bash
 DESKTOP_REMOTE_API_HOST=0.0.0.0
@@ -89,9 +95,18 @@ DESKTOP_REMOTE_API_PORT=3210
 DESKTOP_REMOTE_API_TOKEN=replace-with-a-secret
 ```
 
+这个独立服务只暴露桌面控制 HTTP API，不会去初始化消息渠道、容器或 Claude 会话。
+
 启动后会额外暴露这些接口：
 
 - `GET /api/desktop/health`
+- `GET /api/desktop/capabilities`
+- `GET /api/desktop/screenshot`
+- `POST /api/desktop/input/move`
+- `POST /api/desktop/input/click`
+- `POST /api/desktop/input/type`
+- `POST /api/desktop/input/key`
+- `POST /api/desktop/app/launch`
 - `GET /api/desktop/remote-control/session`
 - `POST /api/desktop/remote-control/start`
 - `POST /api/desktop/remote-control/stop`
@@ -100,7 +115,9 @@ DESKTOP_REMOTE_API_TOKEN=replace-with-a-secret
 
 - 仅在局域网内使用
 - 始终设置 `DESKTOP_REMOTE_API_TOKEN`
-- 手机端只调用这层 API，不直接操作本地进程
+- 手机端优先调用这层 API 做真实桌面操作，不直接操作本地进程
+- `remote-control/start` 仍然只是可选的 Claude 会话入口；没有 Claude API 时，直接忽略这组接口
+- 真正的本地桌面控制走 `screenshot/input/app` 这些接口
 
 ## 定制
 

@@ -8,7 +8,14 @@ const mockConfig = {
   DESKTOP_REMOTE_API_TOKEN: '',
 };
 
+const captureDesktopScreenshotMock = vi.fn();
+const clickMouseMock = vi.fn();
+const getDesktopCapabilitiesMock = vi.fn();
+const launchAppMock = vi.fn();
+const moveMouseMock = vi.fn();
+const pressKeyMock = vi.fn();
 const getActiveSessionMock = vi.fn();
+const sendTextMock = vi.fn();
 const startRemoteControlMock = vi.fn();
 const stopRemoteControlMock = vi.fn();
 
@@ -28,6 +35,18 @@ vi.mock('./remote-control.js', () => ({
   getActiveSession: (...args: unknown[]) => getActiveSessionMock(...args),
   startRemoteControl: (...args: unknown[]) => startRemoteControlMock(...args),
   stopRemoteControl: (...args: unknown[]) => stopRemoteControlMock(...args),
+}));
+
+vi.mock('./desktop-control.js', () => ({
+  captureDesktopScreenshot: (...args: unknown[]) =>
+    captureDesktopScreenshotMock(...args),
+  clickMouse: (...args: unknown[]) => clickMouseMock(...args),
+  getDesktopCapabilities: (...args: unknown[]) =>
+    getDesktopCapabilitiesMock(...args),
+  launchApp: (...args: unknown[]) => launchAppMock(...args),
+  moveMouse: (...args: unknown[]) => moveMouseMock(...args),
+  pressKey: (...args: unknown[]) => pressKeyMock(...args),
+  sendText: (...args: unknown[]) => sendTextMock(...args),
 }));
 
 vi.mock('./logger.js', () => ({
@@ -81,9 +100,24 @@ describe('desktop-remote-api', () => {
     mockConfig.DESKTOP_REMOTE_API_PORT = 0;
     mockConfig.DESKTOP_REMOTE_API_TOKEN = '';
     getActiveSessionMock.mockReset();
+    captureDesktopScreenshotMock.mockReset();
+    clickMouseMock.mockReset();
+    getDesktopCapabilitiesMock.mockReset();
+    launchAppMock.mockReset();
+    moveMouseMock.mockReset();
+    pressKeyMock.mockReset();
     startRemoteControlMock.mockReset();
     stopRemoteControlMock.mockReset();
+    sendTextMock.mockReset();
     getActiveSessionMock.mockReturnValue(null);
+    getDesktopCapabilitiesMock.mockReturnValue({
+      platform: 'win32',
+      supported: true,
+      supportsScreenshot: true,
+      supportsMouse: true,
+      supportsKeyboard: true,
+      supportsAppLaunch: true,
+    });
 
     server = await startDesktopRemoteApi();
     port = (server.address() as AddressInfo).port;
@@ -135,6 +169,51 @@ describe('desktop-remote-api', () => {
           startedInChat: 'phone-ui',
           startedAt: '2026-03-21T09:00:00.000Z',
         },
+      },
+    });
+  });
+
+  it('returns desktop capabilities', async () => {
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/capabilities',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        platform: 'win32',
+        supported: true,
+        supportsScreenshot: true,
+        supportsMouse: true,
+        supportsKeyboard: true,
+        supportsAppLaunch: true,
+      },
+    });
+  });
+
+  it('returns desktop screenshot payload', async () => {
+    captureDesktopScreenshotMock.mockResolvedValue({
+      mimeType: 'image/png',
+      base64: 'ZmFrZQ==',
+      width: 1920,
+      height: 1080,
+    });
+
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/screenshot',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        mimeType: 'image/png',
+        base64: 'ZmFrZQ==',
+        width: 1920,
+        height: 1080,
       },
     });
   });
@@ -206,6 +285,101 @@ describe('desktop-remote-api', () => {
         session: null,
       },
     });
+  });
+
+  it('moves mouse through desktop control endpoint', async () => {
+    moveMouseMock.mockResolvedValue({ ok: true, message: 'Mouse moved' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/move',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ x: 500, y: 400 }),
+    );
+
+    expect(moveMouseMock).toHaveBeenCalledWith(500, 400);
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('clicks mouse through desktop control endpoint', async () => {
+    clickMouseMock.mockResolvedValue({ ok: true, message: 'Mouse left clicked' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/click',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ x: 500, y: 400, button: 'left' }),
+    );
+
+    expect(clickMouseMock).toHaveBeenCalledWith(500, 400, 'left');
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('types text through desktop control endpoint', async () => {
+    sendTextMock.mockResolvedValue({ ok: true, message: 'Text sent' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/type',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ text: 'hello desktop' }),
+    );
+
+    expect(sendTextMock).toHaveBeenCalledWith('hello desktop');
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('presses key through desktop control endpoint', async () => {
+    pressKeyMock.mockResolvedValue({ ok: true, message: 'Key pressed' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/key',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ key: 'ENTER' }),
+    );
+
+    expect(pressKeyMock).toHaveBeenCalledWith('ENTER');
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('launches app through desktop control endpoint', async () => {
+    launchAppMock.mockResolvedValue({ ok: true, message: 'App launched' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/app/launch',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ command: 'notepad.exe', args: ['test.txt'] }),
+    );
+
+    expect(launchAppMock).toHaveBeenCalledWith('notepad.exe', ['test.txt']);
+    expect(response.statusCode).toBe(200);
   });
 
   it('enforces bearer auth when token configured', async () => {

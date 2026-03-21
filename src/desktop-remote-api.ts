@@ -1,6 +1,15 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 
 import {
+  captureDesktopScreenshot,
+  clickMouse,
+  getDesktopCapabilities,
+  launchApp,
+  moveMouse,
+  pressKey,
+  sendText,
+} from './desktop-control.js';
+import {
   DESKTOP_REMOTE_API_HOST,
   DESKTOP_REMOTE_API_PORT,
   DESKTOP_REMOTE_API_TOKEN,
@@ -16,6 +25,28 @@ interface StartRequest {
   sender?: string;
   chatJid?: string;
   cwd?: string;
+}
+
+interface MouseMoveRequest {
+  x: number;
+  y: number;
+}
+
+interface MouseClickRequest extends MouseMoveRequest {
+  button?: 'left' | 'right' | 'middle';
+}
+
+interface TextRequest {
+  text: string;
+}
+
+interface KeyRequest {
+  key: string;
+}
+
+interface LaunchRequest {
+  command: string;
+  args?: string[];
 }
 
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
@@ -108,6 +139,14 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
+        if (method === 'GET' && url.pathname === '/api/desktop/capabilities') {
+          sendJson(res, 200, {
+            ok: true,
+            data: getDesktopCapabilities(),
+          });
+          return;
+        }
+
         if (method === 'GET' && url.pathname === '/api/desktop/remote-control/session') {
           sendJson(res, 200, {
             ok: true,
@@ -152,6 +191,70 @@ export function startDesktopRemoteApi(): Promise<Server> {
           } else {
             sendJson(res, 400, { ok: false, error: result.error });
           }
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/screenshot') {
+          const screenshot = await captureDesktopScreenshot();
+          sendJson(res, 200, {
+            ok: true,
+            data: screenshot,
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/move') {
+          const body = await readJsonBody<MouseMoveRequest>(req);
+          if (!body || typeof body.x !== 'number' || typeof body.y !== 'number') {
+            sendJson(res, 400, { ok: false, error: 'Missing x/y' });
+            return;
+          }
+          const result = await moveMouse(body.x, body.y);
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/click') {
+          const body = await readJsonBody<MouseClickRequest>(req);
+          if (!body || typeof body.x !== 'number' || typeof body.y !== 'number') {
+            sendJson(res, 400, { ok: false, error: 'Missing x/y' });
+            return;
+          }
+          const result = await clickMouse(body.x, body.y, body.button || 'left');
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/type') {
+          const body = await readJsonBody<TextRequest>(req);
+          if (!body?.text) {
+            sendJson(res, 400, { ok: false, error: 'Missing text' });
+            return;
+          }
+          const result = await sendText(body.text);
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/key') {
+          const body = await readJsonBody<KeyRequest>(req);
+          if (!body?.key) {
+            sendJson(res, 400, { ok: false, error: 'Missing key' });
+            return;
+          }
+          const result = await pressKey(body.key);
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/app/launch') {
+          const body = await readJsonBody<LaunchRequest>(req);
+          if (!body?.command) {
+            sendJson(res, 400, { ok: false, error: 'Missing command' });
+            return;
+          }
+          const result = await launchApp(body.command, body.args || []);
+          sendJson(res, 200, { ok: true, data: result });
           return;
         }
 
