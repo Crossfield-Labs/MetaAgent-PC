@@ -115,6 +115,9 @@ scripts/start-metaagent-pc-gui.cmd
 - 配置 `host / port / token`
 - 启动和停止桌面控制服务
 - 一键健康检查
+- 打开、保活、关闭桌面控制 session
+- 查看最近事件和当前 session 状态
+- 本地测试 `health / system info / windows / clipboard / launch app`
 - 复制接口地址
 - 查看实时日志
 - 打开项目目录
