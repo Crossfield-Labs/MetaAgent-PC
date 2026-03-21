@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  An AI assistant that runs agents securely in their own containers. Lightweight, built to be easily understood and completely customized for your needs.
+  MetaAgent-PC is a desktop companion derived from NanoClaw, adapted for the MetaAgent project.
 </p>
 
 <p align="center">
@@ -13,6 +13,19 @@
   <a href="https://discord.gg/VDdww8qS42"><img src="https://img.shields.io/discord/1470188214710046894?label=Discord&logo=discord&v=2" alt="Discord" valign="middle"></a>&nbsp; • &nbsp;
   <a href="repo-tokens"><img src="repo-tokens/badge.svg" alt="34.9k tokens, 17% of context window" valign="middle"></a>
 </p>
+
+---
+
+## MetaAgent-PC
+
+This repository is a downstream fork of NanoClaw, maintained by Crossfield-Labs for the MetaAgent project.
+
+- Project name: `MetaAgent-PC`
+- Organization: `Crossfield-Labs`
+- Team name: `concrete.ai` (`转专业都队`)
+- Final project family name: `MetaAgent`
+
+The original NanoClaw license remains in effect under MIT. This fork keeps the upstream copyright notice and adds downstream attribution in [LICENSE](D:/works/nanoclaw/LICENSE).
 
 ---
 

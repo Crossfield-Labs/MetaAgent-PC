@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  NanoClaw —— 您的专属 Claude 助手，在容器中安全运行。它轻巧易懂，并能根据您的个人需求灵活定制。
+  MetaAgent-PC —— 基于 NanoClaw 二次开发的桌面端组件，用于 MetaAgent 项目。
 </p>
 
 <p align="center">
@@ -14,6 +14,17 @@
   <a href="repo-tokens"><img src="repo-tokens/badge.svg" alt="34.9k tokens, 17% of context window" valign="middle"></a>
 </p>
 通过 Claude Code，NanoClaw 可以动态重写自身代码，根据您的需求定制功能。
+
+## 项目标识
+
+当前仓库按以下方式署名：
+
+- 项目名：`MetaAgent-PC`
+- 所属组织：`Crossfield-Labs`
+- 小组名：`concrete.ai`（中文：`转专业都队`）
+- 最终提交项目名：`MetaAgent`
+
+这个仓库是基于 NanoClaw 的二次开发分支。许可证继续沿用 MIT，并在 [LICENSE](D:/works/nanoclaw/LICENSE) 中同时保留上游版权声明和当前 fork 的署名。
 
 **新功能：** 首个支持 [Agent Swarms（智能体集群）](https://code.claude.com/docs/en/agent-teams) 的 AI 助手。可轻松组建智能体团队，在您的聊天中高效协作。
 

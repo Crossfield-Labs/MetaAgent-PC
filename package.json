@@ -1,9 +1,11 @@
 {
-  "name": "nanoclaw",
+  "name": "metaagent-pc",
   "version": "1.2.19",
-  "description": "Personal Claude assistant. Lightweight, secure, customizable.",
+  "description": "MetaAgent-PC, a desktop companion forked from NanoClaw for the MetaAgent project.",
   "type": "module",
   "main": "dist/index.js",
+  "license": "MIT",
+  "author": "Crossfield-Labs (concrete.ai, 转专业都队)",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -39,5 +41,9 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Crossfield-Labs/MetaAgent-PC.git"
   }
 }
