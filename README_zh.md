@@ -118,6 +118,8 @@ scripts/start-metaagent-pc-gui.cmd
 - 打开、保活、关闭桌面控制 session
 - 查看最近事件和当前 session 状态
 - 本地测试 `health / system info / windows / clipboard / launch app`
+- 手动调试 `move / click / type / key`
+- 预览当前桌面截图
 - 复制接口地址
 - 查看实时日志
 - 打开项目目录

@@ -217,7 +217,7 @@ $sessionGroup.Controls.Add($closeSessionButton)
 $desktopGroup = New-Object System.Windows.Forms.GroupBox
 $desktopGroup.Text = 'Desktop Tests'
 $desktopGroup.Location = New-Object System.Drawing.Point(470, 346)
-$desktopGroup.Size = New-Object System.Drawing.Size(452, 150)
+$desktopGroup.Size = New-Object System.Drawing.Size(452, 190)
 $form.Controls.Add($desktopGroup)
 
 $testHealthButton = New-Object System.Windows.Forms.Button
@@ -269,15 +269,125 @@ $summaryBox.ReadOnly = $true
 $summaryBox.Text = 'Latest response: -'
 $desktopGroup.Controls.Add($summaryBox)
 
+$manualGroup = New-Object System.Windows.Forms.GroupBox
+$manualGroup.Text = 'Manual Control'
+$manualGroup.Location = New-Object System.Drawing.Point(22, 512)
+$manualGroup.Size = New-Object System.Drawing.Size(430, 170)
+$form.Controls.Add($manualGroup)
+
+$mouseXLabel = New-Object System.Windows.Forms.Label
+$mouseXLabel.Text = 'X'
+$mouseXLabel.Location = New-Object System.Drawing.Point(16, 30)
+$mouseXLabel.Size = New-Object System.Drawing.Size(20, 20)
+$manualGroup.Controls.Add($mouseXLabel)
+
+$mouseXInput = New-Object System.Windows.Forms.TextBox
+$mouseXInput.Location = New-Object System.Drawing.Point(40, 28)
+$mouseXInput.Size = New-Object System.Drawing.Size(70, 24)
+$mouseXInput.Text = '400'
+$manualGroup.Controls.Add($mouseXInput)
+
+$mouseYLabel = New-Object System.Windows.Forms.Label
+$mouseYLabel.Text = 'Y'
+$mouseYLabel.Location = New-Object System.Drawing.Point(126, 30)
+$mouseYLabel.Size = New-Object System.Drawing.Size(20, 20)
+$manualGroup.Controls.Add($mouseYLabel)
+
+$mouseYInput = New-Object System.Windows.Forms.TextBox
+$mouseYInput.Location = New-Object System.Drawing.Point(150, 28)
+$mouseYInput.Size = New-Object System.Drawing.Size(70, 24)
+$mouseYInput.Text = '300'
+$manualGroup.Controls.Add($mouseYInput)
+
+$moveMouseButton = New-Object System.Windows.Forms.Button
+$moveMouseButton.Text = 'Move'
+$moveMouseButton.Location = New-Object System.Drawing.Point(240, 26)
+$moveMouseButton.Size = New-Object System.Drawing.Size(75, 28)
+$moveMouseButton.Enabled = $false
+$manualGroup.Controls.Add($moveMouseButton)
+
+$clickMouseButton = New-Object System.Windows.Forms.Button
+$clickMouseButton.Text = 'Click'
+$clickMouseButton.Location = New-Object System.Drawing.Point(325, 26)
+$clickMouseButton.Size = New-Object System.Drawing.Size(75, 28)
+$clickMouseButton.Enabled = $false
+$manualGroup.Controls.Add($clickMouseButton)
+
+$textInputLabel = New-Object System.Windows.Forms.Label
+$textInputLabel.Text = 'Text'
+$textInputLabel.Location = New-Object System.Drawing.Point(16, 70)
+$textInputLabel.Size = New-Object System.Drawing.Size(30, 20)
+$manualGroup.Controls.Add($textInputLabel)
+
+$textInputBox = New-Object System.Windows.Forms.TextBox
+$textInputBox.Location = New-Object System.Drawing.Point(52, 68)
+$textInputBox.Size = New-Object System.Drawing.Size(250, 24)
+$textInputBox.Text = 'hello from MetaAgent-PC'
+$manualGroup.Controls.Add($textInputBox)
+
+$sendTextButton = New-Object System.Windows.Forms.Button
+$sendTextButton.Text = 'Type'
+$sendTextButton.Location = New-Object System.Drawing.Point(315, 66)
+$sendTextButton.Size = New-Object System.Drawing.Size(85, 28)
+$sendTextButton.Enabled = $false
+$manualGroup.Controls.Add($sendTextButton)
+
+$keyInputLabel = New-Object System.Windows.Forms.Label
+$keyInputLabel.Text = 'Key'
+$keyInputLabel.Location = New-Object System.Drawing.Point(16, 110)
+$keyInputLabel.Size = New-Object System.Drawing.Size(30, 20)
+$manualGroup.Controls.Add($keyInputLabel)
+
+$keyInputBox = New-Object System.Windows.Forms.TextBox
+$keyInputBox.Location = New-Object System.Drawing.Point(52, 108)
+$keyInputBox.Size = New-Object System.Drawing.Size(120, 24)
+$keyInputBox.Text = 'ENTER'
+$manualGroup.Controls.Add($keyInputBox)
+
+$sendKeyButton = New-Object System.Windows.Forms.Button
+$sendKeyButton.Text = 'Send Key'
+$sendKeyButton.Location = New-Object System.Drawing.Point(184, 106)
+$sendKeyButton.Size = New-Object System.Drawing.Size(90, 28)
+$sendKeyButton.Enabled = $false
+$manualGroup.Controls.Add($sendKeyButton)
+
+$refreshScreenshotButton = New-Object System.Windows.Forms.Button
+$refreshScreenshotButton.Text = 'Screenshot'
+$refreshScreenshotButton.Location = New-Object System.Drawing.Point(286, 106)
+$refreshScreenshotButton.Size = New-Object System.Drawing.Size(114, 28)
+$refreshScreenshotButton.Enabled = $false
+$manualGroup.Controls.Add($refreshScreenshotButton)
+
+$previewGroup = New-Object System.Windows.Forms.GroupBox
+$previewGroup.Text = 'Screenshot Preview'
+$previewGroup.Location = New-Object System.Drawing.Point(470, 548)
+$previewGroup.Size = New-Object System.Drawing.Size(452, 162)
+$form.Controls.Add($previewGroup)
+
+$previewBox = New-Object System.Windows.Forms.PictureBox
+$previewBox.Location = New-Object System.Drawing.Point(16, 26)
+$previewBox.Size = New-Object System.Drawing.Size(300, 120)
+$previewBox.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+$previewBox.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom
+$previewGroup.Controls.Add($previewBox)
+
+$previewMetaBox = New-Object System.Windows.Forms.TextBox
+$previewMetaBox.Location = New-Object System.Drawing.Point(328, 26)
+$previewMetaBox.Size = New-Object System.Drawing.Size(108, 120)
+$previewMetaBox.Multiline = $true
+$previewMetaBox.ReadOnly = $true
+$previewMetaBox.Text = 'No screenshot loaded'
+$previewGroup.Controls.Add($previewMetaBox)
+
 $eventLabel = New-Object System.Windows.Forms.Label
 $eventLabel.Text = 'Recent Events'
-$eventLabel.Location = New-Object System.Drawing.Point(22, 512)
+$eventLabel.Location = New-Object System.Drawing.Point(470, 512)
 $eventLabel.Size = New-Object System.Drawing.Size(180, 20)
 $form.Controls.Add($eventLabel)
 
 $eventBox = New-Object System.Windows.Forms.TextBox
-$eventBox.Location = New-Object System.Drawing.Point(22, 536)
-$eventBox.Size = New-Object System.Drawing.Size(900, 90)
+$eventBox.Location = New-Object System.Drawing.Point(470, 536)
+$eventBox.Size = New-Object System.Drawing.Size(452, 90)
 $eventBox.Multiline = $true
 $eventBox.ReadOnly = $true
 $eventBox.ScrollBars = 'Vertical'
@@ -285,8 +395,8 @@ $eventBox.Font = New-Object -TypeName System.Drawing.Font -ArgumentList 'Consola
 $form.Controls.Add($eventBox)
 
 $logBox = New-Object System.Windows.Forms.TextBox
-$logBox.Location = New-Object System.Drawing.Point(22, 640)
-$logBox.Size = New-Object System.Drawing.Size(900, 70)
+$logBox.Location = New-Object System.Drawing.Point(22, 688)
+$logBox.Size = New-Object System.Drawing.Size(430, 70)
 $logBox.Multiline = $true
 $logBox.ReadOnly = $true
 $logBox.ScrollBars = 'Vertical'
@@ -328,6 +438,31 @@ function Invoke-DesktopApi {
 function Set-Summary {
   param([string]$Text)
   $summaryBox.Text = ('Latest response: {0}' -f $Text)
+}
+
+function Set-PreviewImage {
+  param(
+    [string]$Base64,
+    [int]$Width,
+    [int]$Height
+  )
+
+  if (-not $Base64) {
+    $previewBox.Image = $null
+    $previewMetaBox.Text = 'No screenshot loaded'
+    return
+  }
+
+  $bytes = [Convert]::FromBase64String($Base64)
+  $memoryStream = New-Object System.IO.MemoryStream(,$bytes)
+  $image = [System.Drawing.Image]::FromStream($memoryStream)
+  $oldImage = $previewBox.Image
+  $previewBox.Image = $image
+  if ($null -ne $oldImage) {
+    $oldImage.Dispose()
+  }
+  $memoryStream.Dispose()
+  $previewMetaBox.Text = ('Size: {0}x{1}' -f $Width, $Height)
 }
 
 function Refresh-Events {
@@ -403,6 +538,11 @@ function Update-UiState {
   $testClipboardButton.Enabled = $running
   $testLaunchButton.Enabled = $running
   $testEventButton.Enabled = $running
+  $moveMouseButton.Enabled = $running
+  $clickMouseButton.Enabled = $running
+  $sendTextButton.Enabled = $running
+  $sendKeyButton.Enabled = $running
+  $refreshScreenshotButton.Enabled = $running
 
   if ($running) {
     $statusLabel.Text = 'Status: running'
@@ -415,6 +555,7 @@ function Update-UiState {
   if (-not $running) {
     $heartbeatButton.Enabled = $false
     $closeSessionButton.Enabled = $false
+    Set-PreviewImage -Base64 '' -Width 0 -Height 0
   }
 }
 
@@ -619,6 +760,68 @@ $testLaunchButton.Add_Click({
 $testEventButton.Add_Click({
   Refresh-Events
   Set-Summary -Text 'Events refreshed'
+})
+
+$moveMouseButton.Add_Click({
+  try {
+    $x = [int]$mouseXInput.Text
+    $y = [int]$mouseYInput.Text
+    Invoke-DesktopApi -Method 'POST' -Path '/api/desktop/input/move' -Body @{ x = $x; y = $y } | Out-Null
+    Set-Summary -Text ('Moved mouse to {0},{1}' -f $x, $y)
+    Append-Log -TextBox $logBox -Message 'Move request sent'
+    Refresh-DesktopState
+  } catch {
+    Append-Log -TextBox $logBox -Message "Move failed: $($_.Exception.Message)"
+  }
+})
+
+$clickMouseButton.Add_Click({
+  try {
+    $x = [int]$mouseXInput.Text
+    $y = [int]$mouseYInput.Text
+    Invoke-DesktopApi -Method 'POST' -Path '/api/desktop/input/click' -Body @{ x = $x; y = $y; button = 'left' } | Out-Null
+    Set-Summary -Text ('Clicked at {0},{1}' -f $x, $y)
+    Append-Log -TextBox $logBox -Message 'Click request sent'
+    Refresh-DesktopState
+  } catch {
+    Append-Log -TextBox $logBox -Message "Click failed: $($_.Exception.Message)"
+  }
+})
+
+$sendTextButton.Add_Click({
+  try {
+    $text = $textInputBox.Text
+    Invoke-DesktopApi -Method 'POST' -Path '/api/desktop/input/type' -Body @{ text = $text } | Out-Null
+    Set-Summary -Text ('Typed {0} chars' -f $text.Length)
+    Append-Log -TextBox $logBox -Message 'Type request sent'
+    Refresh-DesktopState
+  } catch {
+    Append-Log -TextBox $logBox -Message "Type failed: $($_.Exception.Message)"
+  }
+})
+
+$sendKeyButton.Add_Click({
+  try {
+    $key = $keyInputBox.Text
+    Invoke-DesktopApi -Method 'POST' -Path '/api/desktop/input/key' -Body @{ key = $key } | Out-Null
+    Set-Summary -Text ('Sent key {0}' -f $key)
+    Append-Log -TextBox $logBox -Message 'Key request sent'
+    Refresh-DesktopState
+  } catch {
+    Append-Log -TextBox $logBox -Message "Key failed: $($_.Exception.Message)"
+  }
+})
+
+$refreshScreenshotButton.Add_Click({
+  try {
+    $payload = Invoke-DesktopApi -Method 'GET' -Path '/api/desktop/screenshot'
+    Set-PreviewImage -Base64 $payload.data.base64 -Width $payload.data.width -Height $payload.data.height
+    Set-Summary -Text ('Screenshot {0}x{1}' -f $payload.data.width, $payload.data.height)
+    Append-Log -TextBox $logBox -Message 'Screenshot fetched'
+    Refresh-DesktopState
+  } catch {
+    Append-Log -TextBox $logBox -Message "Screenshot failed: $($_.Exception.Message)"
+  }
 })
 
 $openFolderButton.Add_Click({
