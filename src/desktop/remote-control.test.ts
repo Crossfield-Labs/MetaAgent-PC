@@ -2,7 +2,7 @@ import fs from 'fs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock config before importing the module under test
-vi.mock('./config.js', () => ({
+vi.mock('../config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-rc-test',
 }));
 

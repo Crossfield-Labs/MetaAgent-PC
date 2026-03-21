@@ -10,7 +10,7 @@ import {
   TRIGGER_PATTERN,
 } from './config.js';
 import { startCredentialProxy } from './credential-proxy.js';
-import { startDesktopRemoteApi } from './desktop-remote-api.js';
+import { startDesktopRemoteApi } from './desktop/remote-api.js';
 import './channels/index.js';
 import {
   getChannelFactory,
@@ -51,7 +51,7 @@ import {
   restoreRemoteControl,
   startRemoteControl,
   stopRemoteControl,
-} from './remote-control.js';
+} from './desktop/remote-control.js';
 import {
   isSenderAllowed,
   isTriggerAllowed,

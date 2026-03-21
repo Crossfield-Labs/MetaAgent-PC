@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { randomUUID } from 'crypto';
 
-import { DESKTOP_REMOTE_SESSION_TIMEOUT_MS } from './config.js';
+import { DESKTOP_REMOTE_SESSION_TIMEOUT_MS } from '../config.js';
 
 export interface DesktopControlSession {
   id: string;

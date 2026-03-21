@@ -2,8 +2,8 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-import { DATA_DIR } from './config.js';
-import { logger } from './logger.js';
+import { DATA_DIR } from '../config.js';
+import { logger } from '../logger.js';
 
 interface RemoteControlSession {
   pid: number;

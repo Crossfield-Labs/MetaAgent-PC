@@ -14,7 +14,7 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$desktopServerPath = Join-Path $projectRoot 'dist\desktop-server.js'
+$desktopServerPath = Join-Path $projectRoot 'dist\desktop\server.js'
 $envFilePath = Join-Path $projectRoot '.env'
 
 function Read-DotEnv {
@@ -585,7 +585,7 @@ $startButton.Add_Click({
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = 'node'
-    $psi.Arguments = 'dist/desktop-server.js'
+    $psi.Arguments = 'dist/desktop/server.js'
     $psi.WorkingDirectory = $projectRoot
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true

@@ -15,12 +15,12 @@ import {
   scrollMouse,
   setClipboardText,
   sendText,
-} from './desktop-control.js';
+} from './control.js';
 import {
   DESKTOP_REMOTE_API_HOST,
   DESKTOP_REMOTE_API_PORT,
   DESKTOP_REMOTE_API_TOKEN,
-} from './config.js';
+} from '../config.js';
 import {
   getActiveSession,
   startRemoteControl,
@@ -34,8 +34,8 @@ import {
   openDesktopSession,
   publishDesktopEvent,
   subscribeDesktopEvents,
-} from './desktop-session-manager.js';
-import { logger } from './logger.js';
+} from './session-manager.js';
+import { logger } from '../logger.js';
 
 interface StartRequest {
   sender?: string;

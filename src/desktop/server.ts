@@ -1,6 +1,6 @@
-import { DESKTOP_REMOTE_API_HOST, DESKTOP_REMOTE_API_PORT } from './config.js';
-import { startDesktopRemoteApi } from './desktop-remote-api.js';
-import { logger } from './logger.js';
+import { DESKTOP_REMOTE_API_HOST, DESKTOP_REMOTE_API_PORT } from '../config.js';
+import { startDesktopRemoteApi } from './remote-api.js';
+import { logger } from '../logger.js';
 
 async function main(): Promise<void> {
   const server = await startDesktopRemoteApi();
