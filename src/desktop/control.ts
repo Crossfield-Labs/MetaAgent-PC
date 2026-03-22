@@ -53,10 +53,7 @@ export interface DesktopWindowInfo {
 
 type MouseButton = 'left' | 'right' | 'middle';
 
-const WINDOWS_MOUSE_FLAGS: Record<
-  MouseButton,
-  { down: string; up: string }
-> = {
+const WINDOWS_MOUSE_FLAGS: Record<MouseButton, { down: string; up: string }> = {
   left: { down: '0x0002', up: '0x0004' },
   right: { down: '0x0008', up: '0x0010' },
   middle: { down: '0x0020', up: '0x0040' },
@@ -79,7 +76,9 @@ function unsupportedCapabilities(reason: string): DesktopCapabilities {
 
 export function getDesktopCapabilities(): DesktopCapabilities {
   if (process.platform !== 'win32') {
-    return unsupportedCapabilities('Desktop control currently supports Windows only');
+    return unsupportedCapabilities(
+      'Desktop control currently supports Windows only',
+    );
   }
   return {
     platform: process.platform,
@@ -180,7 +179,10 @@ Write-Output $payload
   };
 }
 
-export async function moveMouse(x: number, y: number): Promise<DesktopOperationResult> {
+export async function moveMouse(
+  x: number,
+  y: number,
+): Promise<DesktopOperationResult> {
   const script = `
 Add-Type @"
 using System;
@@ -222,7 +224,10 @@ $targetY = $point.Y + ${Math.round(deltaY)}
 Write-Output '{"ok":true,"message":"Mouse moved relatively"}'
 `.trim();
   await runPowerShell(script);
-  return { ok: true, message: `Mouse moved relatively (${Math.round(deltaX)}, ${Math.round(deltaY)})` };
+  return {
+    ok: true,
+    message: `Mouse moved relatively (${Math.round(deltaX)}, ${Math.round(deltaY)})`,
+  };
 }
 
 export async function clickMouse(
@@ -308,7 +313,9 @@ Write-Output '{"ok":true,"message":"Mouse dragged"}'
   return { ok: true, message: `Mouse ${button} dragged` };
 }
 
-export async function scrollMouse(delta: number): Promise<DesktopOperationResult> {
+export async function scrollMouse(
+  delta: number,
+): Promise<DesktopOperationResult> {
   const amount = Math.round(delta);
   const script = `
 Add-Type @"
@@ -369,7 +376,9 @@ Write-Output '{"ok":true,"message":"Key pressed"}'
   return { ok: true, message: `Key pressed: ${key}` };
 }
 
-export async function pressHotkey(keys: string[]): Promise<DesktopOperationResult> {
+export async function pressHotkey(
+  keys: string[],
+): Promise<DesktopOperationResult> {
   const normalized = keys
     .map((key) => key.trim().toUpperCase())
     .filter((key) => key.length > 0);
@@ -421,7 +430,9 @@ export async function launchApp(
   args: string[] = [],
 ): Promise<DesktopOperationResult> {
   const escapedCommand = escapePowerShellSingleQuoted(command);
-  const escapedArgs = args.map((arg) => `'${escapePowerShellSingleQuoted(arg)}'`);
+  const escapedArgs = args.map(
+    (arg) => `'${escapePowerShellSingleQuoted(arg)}'`,
+  );
   const argList =
     escapedArgs.length > 0 ? `-ArgumentList @(${escapedArgs.join(', ')})` : '';
   const script = `
@@ -443,7 +454,9 @@ Write-Output $payload
   return JSON.parse(output) as { text: string };
 }
 
-export async function setClipboardText(text: string): Promise<DesktopOperationResult> {
+export async function setClipboardText(
+  text: string,
+): Promise<DesktopOperationResult> {
   const encoded = textToBase64(text);
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
@@ -487,7 +500,9 @@ Write-Output $payload
   return {
     ...parsed,
     platform: process.platform,
-    displays: Array.isArray(parsed.displays) ? parsed.displays : [parsed.displays],
+    displays: Array.isArray(parsed.displays)
+      ? parsed.displays
+      : [parsed.displays],
   };
 }
 

@@ -58,7 +58,9 @@ function withExpiry(base: Date): string {
   ).toISOString();
 }
 
-function normalizeSession(session: DesktopControlSession): DesktopControlSession {
+function normalizeSession(
+  session: DesktopControlSession,
+): DesktopControlSession {
   const now = new Date();
   if (new Date(session.expiresAt).getTime() <= now.getTime()) {
     activeSession = null;
