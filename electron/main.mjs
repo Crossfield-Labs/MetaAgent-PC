@@ -8,25 +8,46 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-const envFilePath = path.join(projectRoot, '.env');
-const desktopServerPath = path.join(projectRoot, 'dist', 'desktop', 'server.js');
+const adminToken = randomUUID().replace(/-/g, '');
 
+let runtimeRoot = projectRoot;
 let mainWindow = null;
 let desktopProcess = null;
 let lastStdout = '';
 let lastStderr = '';
 let lastExit = null;
-let currentConfig = readDesktopConfig();
-const adminToken = randomUUID().replace(/-/g, '');
+let currentConfig = defaultDesktopConfig();
 
-function readDesktopConfig() {
-  const defaults = {
+function defaultDesktopConfig() {
+  return {
     host: '0.0.0.0',
     port: '3210',
     token: '',
     pairPassword: '',
     autoApprove: false,
   };
+}
+
+function getEnvFilePath() {
+  return path.join(runtimeRoot, '.env');
+}
+
+function getDesktopServerPath() {
+  return path.join(app.getAppPath(), 'dist', 'desktop', 'server.js');
+}
+
+function displayEndpointFor(config = currentConfig) {
+  return `http://${config.host || '0.0.0.0'}:${config.port || '3210'}`;
+}
+
+function requestEndpointFor(config = currentConfig) {
+  const host = !config.host || config.host === '0.0.0.0' ? '127.0.0.1' : config.host;
+  return `http://${host}:${config.port || '3210'}`;
+}
+
+function readDesktopConfig() {
+  const defaults = defaultDesktopConfig();
+  const envFilePath = getEnvFilePath();
 
   if (!fs.existsSync(envFilePath)) {
     return defaults;
@@ -54,6 +75,8 @@ function readDesktopConfig() {
 }
 
 function writeDesktopConfig(config) {
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  const envFilePath = getEnvFilePath();
   const existing = fs.existsSync(envFilePath)
     ? fs.readFileSync(envFilePath, 'utf8').split(/\r?\n/)
     : [];
@@ -89,10 +112,6 @@ function writeDesktopConfig(config) {
   fs.writeFileSync(envFilePath, rewritten.filter(Boolean).join('\n') + '\n', 'utf8');
 }
 
-function endpointFor(config = currentConfig) {
-  return `http://${config.host || '127.0.0.1'}:${config.port || '3210'}`;
-}
-
 function emit(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(channel, payload);
@@ -113,8 +132,13 @@ function logLine(kind, line) {
 }
 
 async function ensureDesktopBuild() {
+  const desktopServerPath = getDesktopServerPath();
   if (fs.existsSync(desktopServerPath)) {
     return;
+  }
+
+  if (app.isPackaged) {
+    throw new Error(`Packaged desktop server entrypoint is missing: ${desktopServerPath}`);
   }
 
   await new Promise((resolve, reject) => {
@@ -163,12 +187,14 @@ async function startDesktopServer(config) {
 
   await ensureDesktopBuild();
 
-  desktopProcess = spawn('node', ['dist/desktop/server.js'], {
-    cwd: projectRoot,
+  const desktopServerPath = getDesktopServerPath();
+  desktopProcess = spawn(process.execPath, [desktopServerPath], {
+    cwd: runtimeRoot,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
       DESKTOP_REMOTE_API_HOST: currentConfig.host,
       DESKTOP_REMOTE_API_PORT: currentConfig.port,
       DESKTOP_REMOTE_API_TOKEN: currentConfig.token,
@@ -238,9 +264,11 @@ async function stopDesktopServer() {
 function statePayload() {
   return {
     running: Boolean(desktopProcess),
-    endpoint: endpointFor(),
+    endpoint: displayEndpointFor(),
     config: currentConfig,
     lastExit,
+    runtimeRoot,
+    packaged: app.isPackaged,
   };
 }
 
@@ -254,7 +282,7 @@ async function requestDesktopApi({ method, path: requestPath, body, token }) {
     headers.Authorization = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${endpointFor()}${requestPath}`, {
+  const response = await fetch(`${requestEndpointFor()}${requestPath}`, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -276,7 +304,7 @@ async function requestDesktopApi({ method, path: requestPath, body, token }) {
 }
 
 async function requestAdminApi({ method, path: requestPath, body }) {
-  const response = await fetch(`${endpointFor()}${requestPath}`, {
+  const response = await fetch(`${requestEndpointFor()}${requestPath}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -317,18 +345,25 @@ function createWindow() {
 ipcMain.handle('desktop:get-state', async () => statePayload());
 ipcMain.handle('desktop:get-defaults', async () => ({
   config: currentConfig,
-  endpoint: endpointFor(),
+  endpoint: displayEndpointFor(),
 }));
 ipcMain.handle('desktop:start', async (_event, config) => startDesktopServer(config));
 ipcMain.handle('desktop:stop', async () => stopDesktopServer());
 ipcMain.handle('desktop:api', async (_event, payload) => requestDesktopApi(payload));
 ipcMain.handle('desktop:open-project', async () => {
   const { shell } = await import('electron');
-  await shell.openPath(projectRoot);
+  await shell.openPath(app.isPackaged ? runtimeRoot : projectRoot);
 });
 ipcMain.handle('desktop:admin-api', async (_event, payload) => requestAdminApi(payload));
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  runtimeRoot = app.isPackaged
+    ? path.join(app.getPath('userData'), 'desktop-runtime')
+    : projectRoot;
+  fs.mkdirSync(runtimeRoot, { recursive: true });
+  currentConfig = readDesktopConfig();
+  createWindow();
+});
 
 app.on('window-all-closed', async () => {
   await stopDesktopServer();

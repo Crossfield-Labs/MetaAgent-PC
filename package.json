@@ -1,9 +1,9 @@
 {
   "name": "metaagent-pc",
-  "version": "1.2.19",
+  "version": "0.1.1",
   "description": "MetaAgent-PC, a desktop companion forked from NanoClaw for the MetaAgent project.",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "electron/main.mjs",
   "license": "MIT",
   "author": "Crossfield-Labs (concrete.ai, 转专业都队)",
   "scripts": {
@@ -12,6 +12,7 @@
     "dev": "tsx src/index.ts",
     "desktop": "tsx src/desktop/server.ts",
     "gui": "electron electron/main.mjs",
+    "dist:win": "npm run build && electron-builder --win nsis --publish never",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
@@ -35,6 +36,7 @@
     "@types/node": "^22.10.0",
     "@vitest/coverage-v8": "^4.0.18",
     "electron": "^37.3.1",
+    "electron-builder": "^26.0.12",
     "husky": "^9.1.7",
     "prettier": "^3.8.1",
     "tsx": "^4.19.0",
@@ -47,5 +49,36 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/Crossfield-Labs/MetaAgent-PC.git"
+  },
+  "build": {
+    "appId": "labs.crossfield.metaagentpc",
+    "productName": "MetaAgent-PC",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "README.md",
+      "LICENSE",
+      ".env.example"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "MetaAgent-PC-${version}-setup.${ext}",
+      "icon": "electron/renderer/assets/logo.png"
+    },
+    "extraMetadata": {
+      "main": "electron/main.mjs"
+    }
   }
 }
