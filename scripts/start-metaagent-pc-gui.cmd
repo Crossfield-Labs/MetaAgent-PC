@@ -1,4 +1,5 @@
 @echo off
 setlocal
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0metaagent-pc-gui.ps1"
+cd /d "%~dp0.."
+npm.cmd run gui
 endlocal

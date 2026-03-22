@@ -196,6 +196,35 @@ Write-Output '{"ok":true,"message":"Mouse moved"}'
   return { ok: true, message: 'Mouse moved' };
 }
 
+export async function moveMouseRelative(
+  deltaX: number,
+  deltaY: number,
+): Promise<DesktopOperationResult> {
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopMouse {
+  [StructLayout(LayoutKind.Sequential)]
+  public struct POINT {
+    public int X;
+    public int Y;
+  }
+  [DllImport("user32.dll")] public static extern bool GetCursorPos(out POINT point);
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+}
+"@
+$point = New-Object DesktopMouse+POINT
+[DesktopMouse]::GetCursorPos([ref]$point) | Out-Null
+$targetX = $point.X + ${Math.round(deltaX)}
+$targetY = $point.Y + ${Math.round(deltaY)}
+[DesktopMouse]::SetCursorPos($targetX, $targetY) | Out-Null
+Write-Output '{"ok":true,"message":"Mouse moved relatively"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: `Mouse moved relatively (${Math.round(deltaX)}, ${Math.round(deltaY)})` };
+}
+
 export async function clickMouse(
   x: number,
   y: number,
@@ -218,6 +247,26 @@ Write-Output '{"ok":true,"message":"Mouse clicked"}'
 `.trim();
   await runPowerShell(script);
   return { ok: true, message: `Mouse ${button} clicked` };
+}
+
+export async function clickMouseCurrent(
+  button: MouseButton = 'left',
+): Promise<DesktopOperationResult> {
+  const flags = WINDOWS_MOUSE_FLAGS[button];
+  const script = `
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public static class DesktopMouse {
+  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr extraInfo);
+}
+"@
+[DesktopMouse]::mouse_event(${flags.down}, 0, 0, 0, [UIntPtr]::Zero)
+[DesktopMouse]::mouse_event(${flags.up}, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output '{"ok":true,"message":"Mouse clicked at current position"}'
+`.trim();
+  await runPowerShell(script);
+  return { ok: true, message: `Mouse ${button} clicked at current position` };
 }
 
 export async function dragMouse(

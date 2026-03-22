@@ -170,7 +170,7 @@ describe('desktop-remote-api', () => {
       ],
     });
     listDesktopWindowsMock.mockResolvedValue([
-      { processName: 'Code', title: 'MetaAgent-PC', pid: 1001 },
+      { processName: 'Code', title: 'MetaAgent', pid: 1001 },
     ]);
     getClipboardTextMock.mockResolvedValue({ text: 'clipboard value' });
 
@@ -384,7 +384,7 @@ describe('desktop-remote-api', () => {
 
     expect(response.statusCode).toBe(200);
     expect(JSON.parse(response.body).data.windows).toEqual([
-      { processName: 'Code', title: 'MetaAgent-PC', pid: 1001 },
+      { processName: 'Code', title: 'MetaAgent', pid: 1001 },
     ]);
   });
 

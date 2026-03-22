@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 if ($SelfTest) {
-  Write-Output 'MetaAgent-PC GUI script loaded'
+  Write-Output 'MetaAgent GUI script loaded'
   exit 0
 }
 
@@ -16,6 +16,20 @@ Add-Type -AssemblyName System.Drawing
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $desktopServerPath = Join-Path $projectRoot 'dist\desktop\server.js'
 $envFilePath = Join-Path $projectRoot '.env'
+
+$fontUi = New-Object System.Drawing.Font('Segoe UI', 9.5)
+$fontUiBold = New-Object System.Drawing.Font('Segoe UI Semibold', 9.5)
+$fontTitle = New-Object System.Drawing.Font('Segoe UI Semibold', 18)
+$fontMono = New-Object System.Drawing.Font('Consolas', 9)
+$colorWindow = [System.Drawing.Color]::FromArgb(248, 249, 252)
+$colorCard = [System.Drawing.Color]::White
+$colorBorder = [System.Drawing.Color]::FromArgb(224, 226, 230)
+$colorText = [System.Drawing.Color]::FromArgb(29, 33, 41)
+$colorMuted = [System.Drawing.Color]::FromArgb(97, 104, 118)
+$colorPrimary = [System.Drawing.Color]::FromArgb(0, 95, 184)
+$colorPrimarySoft = [System.Drawing.Color]::FromArgb(232, 240, 254)
+$colorDangerSoft = [System.Drawing.Color]::FromArgb(255, 239, 239)
+$colorInput = [System.Drawing.Color]::FromArgb(251, 252, 254)
 
 function Read-DotEnv {
   param([string]$Path)
@@ -47,20 +61,77 @@ function Append-Log {
   $TextBox.AppendText(("[$([DateTime]::Now.ToString('HH:mm:ss'))] $Message" + [Environment]::NewLine))
 }
 
+function Show-ErrorDetails {
+  param(
+    [System.Windows.Forms.TextBox]$InfoTextBox,
+    [System.Windows.Forms.TextBox]$LogTextBox,
+    [string]$Title,
+    [string]$Message
+  )
+
+  $fullMessage = "$Title`r`n$Message"
+  $InfoTextBox.Text = $fullMessage
+  Append-Log -TextBox $LogTextBox -Message "$Title $Message"
+}
+
+function Initialize-TextBoxStyle {
+  param(
+    [System.Windows.Forms.TextBox]$TextBox,
+    [switch]$Mono
+  )
+
+  $TextBox.Font = if ($Mono) { $fontMono } else { $fontUi }
+  $TextBox.BackColor = $colorInput
+  $TextBox.ForeColor = $colorText
+  $TextBox.BorderStyle = 'FixedSingle'
+}
+
+function Initialize-ButtonStyle {
+  param(
+    [System.Windows.Forms.Button]$Button,
+    [switch]$Primary
+  )
+
+  $Button.Font = $fontUiBold
+  $Button.FlatStyle = 'Flat'
+  $Button.FlatAppearance.BorderSize = 1
+  $Button.FlatAppearance.BorderColor = $colorBorder
+  if ($Primary) {
+    $Button.BackColor = $colorPrimary
+    $Button.ForeColor = [System.Drawing.Color]::White
+  } else {
+    $Button.BackColor = $colorCard
+    $Button.ForeColor = $colorText
+  }
+}
+
+function Initialize-PanelStyle {
+  param(
+    [System.Windows.Forms.Control]$Control
+  )
+
+  $Control.BackColor = $colorCard
+  $Control.ForeColor = $colorText
+}
+
 $envMap = Read-DotEnv -Path $envFilePath
 $defaultHost = if ($envMap.ContainsKey('DESKTOP_REMOTE_API_HOST')) { $envMap['DESKTOP_REMOTE_API_HOST'] } else { '127.0.0.1' }
 $defaultPort = if ($envMap.ContainsKey('DESKTOP_REMOTE_API_PORT')) { $envMap['DESKTOP_REMOTE_API_PORT'] } else { '3210' }
 $defaultToken = if ($envMap.ContainsKey('DESKTOP_REMOTE_API_TOKEN')) { $envMap['DESKTOP_REMOTE_API_TOKEN'] } else { '' }
 
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'MetaAgent-PC'
+$form.Text = 'MetaAgent'
 $form.Size = New-Object System.Drawing.Size(960, 760)
 $form.StartPosition = 'CenterScreen'
 $form.MinimumSize = New-Object System.Drawing.Size(960, 760)
+$form.BackColor = $colorWindow
+$form.Font = $fontUi
+$form.ForeColor = $colorText
 
 $titleLabel = New-Object System.Windows.Forms.Label
-$titleLabel.Text = 'MetaAgent-PC Launcher'
-$titleLabel.Font = New-Object -TypeName System.Drawing.Font -ArgumentList 'Segoe UI', 16, ([System.Drawing.FontStyle]::Bold)
+$titleLabel.Text = 'MetaAgent Launcher'
+$titleLabel.Font = $fontTitle
+$titleLabel.ForeColor = $colorText
 $titleLabel.Location = New-Object System.Drawing.Point(18, 16)
 $titleLabel.Size = New-Object System.Drawing.Size(320, 34)
 $form.Controls.Add($titleLabel)
@@ -69,61 +140,71 @@ $subtitleLabel = New-Object System.Windows.Forms.Label
 $subtitleLabel.Text = 'Start the desktop control service for MetaAgent phone clients.'
 $subtitleLabel.Location = New-Object System.Drawing.Point(20, 52)
 $subtitleLabel.Size = New-Object System.Drawing.Size(420, 20)
+$subtitleLabel.ForeColor = $colorMuted
 $form.Controls.Add($subtitleLabel)
 
 $hostLabel = New-Object System.Windows.Forms.Label
 $hostLabel.Text = 'Host'
 $hostLabel.Location = New-Object System.Drawing.Point(22, 92)
 $hostLabel.Size = New-Object System.Drawing.Size(80, 20)
+$hostLabel.Font = $fontUiBold
 $form.Controls.Add($hostLabel)
 
 $hostInput = New-Object System.Windows.Forms.TextBox
 $hostInput.Location = New-Object System.Drawing.Point(22, 114)
 $hostInput.Size = New-Object System.Drawing.Size(180, 27)
 $hostInput.Text = $defaultHost
+Initialize-TextBoxStyle -TextBox $hostInput
 $form.Controls.Add($hostInput)
 
 $portLabel = New-Object System.Windows.Forms.Label
 $portLabel.Text = 'Port'
 $portLabel.Location = New-Object System.Drawing.Point(220, 92)
 $portLabel.Size = New-Object System.Drawing.Size(80, 20)
+$portLabel.Font = $fontUiBold
 $form.Controls.Add($portLabel)
 
 $portInput = New-Object System.Windows.Forms.TextBox
 $portInput.Location = New-Object System.Drawing.Point(220, 114)
 $portInput.Size = New-Object System.Drawing.Size(100, 27)
 $portInput.Text = $defaultPort
+Initialize-TextBoxStyle -TextBox $portInput
 $form.Controls.Add($portInput)
 
 $tokenLabel = New-Object System.Windows.Forms.Label
 $tokenLabel.Text = 'Token'
 $tokenLabel.Location = New-Object System.Drawing.Point(340, 92)
 $tokenLabel.Size = New-Object System.Drawing.Size(80, 20)
+$tokenLabel.Font = $fontUiBold
 $form.Controls.Add($tokenLabel)
 
 $tokenInput = New-Object System.Windows.Forms.TextBox
 $tokenInput.Location = New-Object System.Drawing.Point(340, 114)
 $tokenInput.Size = New-Object System.Drawing.Size(250, 27)
 $tokenInput.Text = $defaultToken
+Initialize-TextBoxStyle -TextBox $tokenInput
 $form.Controls.Add($tokenInput)
 
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = 'Status: stopped'
 $statusLabel.Location = New-Object System.Drawing.Point(22, 156)
 $statusLabel.Size = New-Object System.Drawing.Size(360, 24)
-$statusLabel.Font = New-Object -TypeName System.Drawing.Font -ArgumentList 'Segoe UI', 10, ([System.Drawing.FontStyle]::Bold)
+$statusLabel.Font = $fontUiBold
+$statusLabel.ForeColor = $colorPrimary
 $form.Controls.Add($statusLabel)
 
 $endpointLabel = New-Object System.Windows.Forms.Label
 $endpointLabel.Text = 'Endpoint: -'
 $endpointLabel.Location = New-Object System.Drawing.Point(22, 184)
 $endpointLabel.Size = New-Object System.Drawing.Size(520, 22)
+$endpointLabel.ForeColor = $colorMuted
 $form.Controls.Add($endpointLabel)
 
 $startButton = New-Object System.Windows.Forms.Button
 $startButton.Text = 'Start'
 $startButton.Location = New-Object System.Drawing.Point(22, 220)
 $startButton.Size = New-Object System.Drawing.Size(110, 34)
+Initialize-ButtonStyle -Button $startButton -Primary
 $form.Controls.Add($startButton)
 
 $stopButton = New-Object System.Windows.Forms.Button
@@ -131,6 +212,7 @@ $stopButton.Text = 'Stop'
 $stopButton.Location = New-Object System.Drawing.Point(142, 220)
 $stopButton.Size = New-Object System.Drawing.Size(110, 34)
 $stopButton.Enabled = $false
+Initialize-ButtonStyle -Button $stopButton
 $form.Controls.Add($stopButton)
 
 $healthButton = New-Object System.Windows.Forms.Button
@@ -138,6 +220,7 @@ $healthButton.Text = 'Health'
 $healthButton.Location = New-Object System.Drawing.Point(262, 220)
 $healthButton.Size = New-Object System.Drawing.Size(110, 34)
 $healthButton.Enabled = $false
+Initialize-ButtonStyle -Button $healthButton
 $form.Controls.Add($healthButton)
 
 $copyButton = New-Object System.Windows.Forms.Button
@@ -145,6 +228,7 @@ $copyButton.Text = 'Copy URL'
 $copyButton.Location = New-Object System.Drawing.Point(382, 220)
 $copyButton.Size = New-Object System.Drawing.Size(110, 34)
 $copyButton.Enabled = $false
+Initialize-ButtonStyle -Button $copyButton
 $form.Controls.Add($copyButton)
 
 $openSessionButton = New-Object System.Windows.Forms.Button
@@ -152,6 +236,7 @@ $openSessionButton.Text = 'Open Session'
 $openSessionButton.Location = New-Object System.Drawing.Point(502, 220)
 $openSessionButton.Size = New-Object System.Drawing.Size(110, 34)
 $openSessionButton.Enabled = $false
+Initialize-ButtonStyle -Button $openSessionButton
 $form.Controls.Add($openSessionButton)
 
 $refreshButton = New-Object System.Windows.Forms.Button
@@ -159,12 +244,14 @@ $refreshButton.Text = 'Refresh'
 $refreshButton.Location = New-Object System.Drawing.Point(622, 220)
 $refreshButton.Size = New-Object System.Drawing.Size(100, 34)
 $refreshButton.Enabled = $false
+Initialize-ButtonStyle -Button $refreshButton
 $form.Controls.Add($refreshButton)
 
 $openFolderButton = New-Object System.Windows.Forms.Button
 $openFolderButton.Text = 'Open Folder'
 $openFolderButton.Location = New-Object System.Drawing.Point(732, 220)
 $openFolderButton.Size = New-Object System.Drawing.Size(150, 34)
+Initialize-ButtonStyle -Button $openFolderButton
 $form.Controls.Add($openFolderButton)
 
 $infoBox = New-Object System.Windows.Forms.TextBox
@@ -173,6 +260,10 @@ $infoBox.Size = New-Object System.Drawing.Size(900, 56)
 $infoBox.Multiline = $true
 $infoBox.ReadOnly = $true
 $infoBox.ScrollBars = 'Vertical'
+$infoBox.BackColor = $colorPrimarySoft
+$infoBox.ForeColor = $colorText
+$infoBox.BorderStyle = 'None'
+$infoBox.Font = $fontUi
 $infoBox.Text = "Click Start to launch the desktop service, then connect from your phone using the endpoint shown here.`r`nIf dist is missing, the GUI will run npm run build automatically."
 $form.Controls.Add($infoBox)
 
@@ -180,24 +271,29 @@ $sessionGroup = New-Object System.Windows.Forms.GroupBox
 $sessionGroup.Text = 'Desktop Session'
 $sessionGroup.Location = New-Object System.Drawing.Point(22, 346)
 $sessionGroup.Size = New-Object System.Drawing.Size(430, 150)
+$sessionGroup.Font = $fontUiBold
+Initialize-PanelStyle -Control $sessionGroup
 $form.Controls.Add($sessionGroup)
 
 $sessionStatusLabel = New-Object System.Windows.Forms.Label
 $sessionStatusLabel.Text = 'Session: none'
 $sessionStatusLabel.Location = New-Object System.Drawing.Point(16, 28)
 $sessionStatusLabel.Size = New-Object System.Drawing.Size(390, 20)
+$sessionStatusLabel.ForeColor = $colorMuted
 $sessionGroup.Controls.Add($sessionStatusLabel)
 
 $sessionIdLabel = New-Object System.Windows.Forms.Label
 $sessionIdLabel.Text = 'Session ID: -'
 $sessionIdLabel.Location = New-Object System.Drawing.Point(16, 56)
 $sessionIdLabel.Size = New-Object System.Drawing.Size(390, 20)
+$sessionIdLabel.ForeColor = $colorMuted
 $sessionGroup.Controls.Add($sessionIdLabel)
 
 $sessionExpiryLabel = New-Object System.Windows.Forms.Label
 $sessionExpiryLabel.Text = 'Expires: -'
 $sessionExpiryLabel.Location = New-Object System.Drawing.Point(16, 84)
 $sessionExpiryLabel.Size = New-Object System.Drawing.Size(390, 20)
+$sessionExpiryLabel.ForeColor = $colorMuted
 $sessionGroup.Controls.Add($sessionExpiryLabel)
 
 $heartbeatButton = New-Object System.Windows.Forms.Button
@@ -205,6 +301,7 @@ $heartbeatButton.Text = 'Heartbeat'
 $heartbeatButton.Location = New-Object System.Drawing.Point(16, 108)
 $heartbeatButton.Size = New-Object System.Drawing.Size(110, 28)
 $heartbeatButton.Enabled = $false
+Initialize-ButtonStyle -Button $heartbeatButton
 $sessionGroup.Controls.Add($heartbeatButton)
 
 $closeSessionButton = New-Object System.Windows.Forms.Button
@@ -212,12 +309,15 @@ $closeSessionButton.Text = 'Close Session'
 $closeSessionButton.Location = New-Object System.Drawing.Point(136, 108)
 $closeSessionButton.Size = New-Object System.Drawing.Size(110, 28)
 $closeSessionButton.Enabled = $false
+Initialize-ButtonStyle -Button $closeSessionButton
 $sessionGroup.Controls.Add($closeSessionButton)
 
 $desktopGroup = New-Object System.Windows.Forms.GroupBox
 $desktopGroup.Text = 'Desktop Tests'
 $desktopGroup.Location = New-Object System.Drawing.Point(470, 346)
 $desktopGroup.Size = New-Object System.Drawing.Size(452, 190)
+$desktopGroup.Font = $fontUiBold
+Initialize-PanelStyle -Control $desktopGroup
 $form.Controls.Add($desktopGroup)
 
 $testHealthButton = New-Object System.Windows.Forms.Button
@@ -225,6 +325,7 @@ $testHealthButton.Text = 'Fetch Health'
 $testHealthButton.Location = New-Object System.Drawing.Point(16, 28)
 $testHealthButton.Size = New-Object System.Drawing.Size(120, 30)
 $testHealthButton.Enabled = $false
+Initialize-ButtonStyle -Button $testHealthButton
 $desktopGroup.Controls.Add($testHealthButton)
 
 $testInfoButton = New-Object System.Windows.Forms.Button
@@ -232,6 +333,7 @@ $testInfoButton.Text = 'System Info'
 $testInfoButton.Location = New-Object System.Drawing.Point(146, 28)
 $testInfoButton.Size = New-Object System.Drawing.Size(120, 30)
 $testInfoButton.Enabled = $false
+Initialize-ButtonStyle -Button $testInfoButton
 $desktopGroup.Controls.Add($testInfoButton)
 
 $testWindowsButton = New-Object System.Windows.Forms.Button
@@ -239,6 +341,7 @@ $testWindowsButton.Text = 'List Windows'
 $testWindowsButton.Location = New-Object System.Drawing.Point(276, 28)
 $testWindowsButton.Size = New-Object System.Drawing.Size(120, 30)
 $testWindowsButton.Enabled = $false
+Initialize-ButtonStyle -Button $testWindowsButton
 $desktopGroup.Controls.Add($testWindowsButton)
 
 $testClipboardButton = New-Object System.Windows.Forms.Button
@@ -246,6 +349,7 @@ $testClipboardButton.Text = 'Get Clipboard'
 $testClipboardButton.Location = New-Object System.Drawing.Point(16, 70)
 $testClipboardButton.Size = New-Object System.Drawing.Size(120, 30)
 $testClipboardButton.Enabled = $false
+Initialize-ButtonStyle -Button $testClipboardButton
 $desktopGroup.Controls.Add($testClipboardButton)
 
 $testLaunchButton = New-Object System.Windows.Forms.Button
@@ -253,6 +357,7 @@ $testLaunchButton.Text = 'Launch Notepad'
 $testLaunchButton.Location = New-Object System.Drawing.Point(146, 70)
 $testLaunchButton.Size = New-Object System.Drawing.Size(120, 30)
 $testLaunchButton.Enabled = $false
+Initialize-ButtonStyle -Button $testLaunchButton
 $desktopGroup.Controls.Add($testLaunchButton)
 
 $testEventButton = New-Object System.Windows.Forms.Button
@@ -260,12 +365,17 @@ $testEventButton.Text = 'Fetch Events'
 $testEventButton.Location = New-Object System.Drawing.Point(276, 70)
 $testEventButton.Size = New-Object System.Drawing.Size(120, 30)
 $testEventButton.Enabled = $false
+Initialize-ButtonStyle -Button $testEventButton
 $desktopGroup.Controls.Add($testEventButton)
 
 $summaryBox = New-Object System.Windows.Forms.TextBox
 $summaryBox.Location = New-Object System.Drawing.Point(16, 108)
 $summaryBox.Size = New-Object System.Drawing.Size(420, 28)
 $summaryBox.ReadOnly = $true
+$summaryBox.BackColor = $colorPrimarySoft
+$summaryBox.ForeColor = $colorText
+$summaryBox.BorderStyle = 'FixedSingle'
+$summaryBox.Font = $fontUi
 $summaryBox.Text = 'Latest response: -'
 $desktopGroup.Controls.Add($summaryBox)
 
@@ -273,6 +383,8 @@ $manualGroup = New-Object System.Windows.Forms.GroupBox
 $manualGroup.Text = 'Manual Control'
 $manualGroup.Location = New-Object System.Drawing.Point(22, 512)
 $manualGroup.Size = New-Object System.Drawing.Size(430, 170)
+$manualGroup.Font = $fontUiBold
+Initialize-PanelStyle -Control $manualGroup
 $form.Controls.Add($manualGroup)
 
 $mouseXLabel = New-Object System.Windows.Forms.Label
@@ -285,6 +397,7 @@ $mouseXInput = New-Object System.Windows.Forms.TextBox
 $mouseXInput.Location = New-Object System.Drawing.Point(40, 28)
 $mouseXInput.Size = New-Object System.Drawing.Size(70, 24)
 $mouseXInput.Text = '400'
+Initialize-TextBoxStyle -TextBox $mouseXInput
 $manualGroup.Controls.Add($mouseXInput)
 
 $mouseYLabel = New-Object System.Windows.Forms.Label
@@ -297,6 +410,7 @@ $mouseYInput = New-Object System.Windows.Forms.TextBox
 $mouseYInput.Location = New-Object System.Drawing.Point(150, 28)
 $mouseYInput.Size = New-Object System.Drawing.Size(70, 24)
 $mouseYInput.Text = '300'
+Initialize-TextBoxStyle -TextBox $mouseYInput
 $manualGroup.Controls.Add($mouseYInput)
 
 $moveMouseButton = New-Object System.Windows.Forms.Button
@@ -304,6 +418,7 @@ $moveMouseButton.Text = 'Move'
 $moveMouseButton.Location = New-Object System.Drawing.Point(240, 26)
 $moveMouseButton.Size = New-Object System.Drawing.Size(75, 28)
 $moveMouseButton.Enabled = $false
+Initialize-ButtonStyle -Button $moveMouseButton
 $manualGroup.Controls.Add($moveMouseButton)
 
 $clickMouseButton = New-Object System.Windows.Forms.Button
@@ -311,6 +426,7 @@ $clickMouseButton.Text = 'Click'
 $clickMouseButton.Location = New-Object System.Drawing.Point(325, 26)
 $clickMouseButton.Size = New-Object System.Drawing.Size(75, 28)
 $clickMouseButton.Enabled = $false
+Initialize-ButtonStyle -Button $clickMouseButton
 $manualGroup.Controls.Add($clickMouseButton)
 
 $textInputLabel = New-Object System.Windows.Forms.Label
@@ -322,7 +438,8 @@ $manualGroup.Controls.Add($textInputLabel)
 $textInputBox = New-Object System.Windows.Forms.TextBox
 $textInputBox.Location = New-Object System.Drawing.Point(52, 68)
 $textInputBox.Size = New-Object System.Drawing.Size(250, 24)
-$textInputBox.Text = 'hello from MetaAgent-PC'
+$textInputBox.Text = 'hello from MetaAgent'
+Initialize-TextBoxStyle -TextBox $textInputBox
 $manualGroup.Controls.Add($textInputBox)
 
 $sendTextButton = New-Object System.Windows.Forms.Button
@@ -330,6 +447,7 @@ $sendTextButton.Text = 'Type'
 $sendTextButton.Location = New-Object System.Drawing.Point(315, 66)
 $sendTextButton.Size = New-Object System.Drawing.Size(85, 28)
 $sendTextButton.Enabled = $false
+Initialize-ButtonStyle -Button $sendTextButton
 $manualGroup.Controls.Add($sendTextButton)
 
 $keyInputLabel = New-Object System.Windows.Forms.Label
@@ -342,6 +460,7 @@ $keyInputBox = New-Object System.Windows.Forms.TextBox
 $keyInputBox.Location = New-Object System.Drawing.Point(52, 108)
 $keyInputBox.Size = New-Object System.Drawing.Size(120, 24)
 $keyInputBox.Text = 'ENTER'
+Initialize-TextBoxStyle -TextBox $keyInputBox
 $manualGroup.Controls.Add($keyInputBox)
 
 $sendKeyButton = New-Object System.Windows.Forms.Button
@@ -349,6 +468,7 @@ $sendKeyButton.Text = 'Send Key'
 $sendKeyButton.Location = New-Object System.Drawing.Point(184, 106)
 $sendKeyButton.Size = New-Object System.Drawing.Size(90, 28)
 $sendKeyButton.Enabled = $false
+Initialize-ButtonStyle -Button $sendKeyButton
 $manualGroup.Controls.Add($sendKeyButton)
 
 $refreshScreenshotButton = New-Object System.Windows.Forms.Button
@@ -356,12 +476,15 @@ $refreshScreenshotButton.Text = 'Screenshot'
 $refreshScreenshotButton.Location = New-Object System.Drawing.Point(286, 106)
 $refreshScreenshotButton.Size = New-Object System.Drawing.Size(114, 28)
 $refreshScreenshotButton.Enabled = $false
+Initialize-ButtonStyle -Button $refreshScreenshotButton
 $manualGroup.Controls.Add($refreshScreenshotButton)
 
 $previewGroup = New-Object System.Windows.Forms.GroupBox
 $previewGroup.Text = 'Screenshot Preview'
 $previewGroup.Location = New-Object System.Drawing.Point(470, 548)
 $previewGroup.Size = New-Object System.Drawing.Size(452, 162)
+$previewGroup.Font = $fontUiBold
+Initialize-PanelStyle -Control $previewGroup
 $form.Controls.Add($previewGroup)
 
 $previewBox = New-Object System.Windows.Forms.PictureBox
@@ -376,6 +499,10 @@ $previewMetaBox.Location = New-Object System.Drawing.Point(328, 26)
 $previewMetaBox.Size = New-Object System.Drawing.Size(108, 120)
 $previewMetaBox.Multiline = $true
 $previewMetaBox.ReadOnly = $true
+$previewMetaBox.BackColor = $colorPrimarySoft
+$previewMetaBox.ForeColor = $colorText
+$previewMetaBox.BorderStyle = 'FixedSingle'
+$previewMetaBox.Font = $fontUi
 $previewMetaBox.Text = 'No screenshot loaded'
 $previewGroup.Controls.Add($previewMetaBox)
 
@@ -383,6 +510,7 @@ $eventLabel = New-Object System.Windows.Forms.Label
 $eventLabel.Text = 'Recent Events'
 $eventLabel.Location = New-Object System.Drawing.Point(470, 512)
 $eventLabel.Size = New-Object System.Drawing.Size(180, 20)
+$eventLabel.Font = $fontUiBold
 $form.Controls.Add($eventLabel)
 
 $eventBox = New-Object System.Windows.Forms.TextBox
@@ -391,7 +519,7 @@ $eventBox.Size = New-Object System.Drawing.Size(452, 90)
 $eventBox.Multiline = $true
 $eventBox.ReadOnly = $true
 $eventBox.ScrollBars = 'Vertical'
-$eventBox.Font = New-Object -TypeName System.Drawing.Font -ArgumentList 'Consolas', 9
+Initialize-TextBoxStyle -TextBox $eventBox -Mono
 $form.Controls.Add($eventBox)
 
 $logBox = New-Object System.Windows.Forms.TextBox
@@ -400,11 +528,13 @@ $logBox.Size = New-Object System.Drawing.Size(430, 70)
 $logBox.Multiline = $true
 $logBox.ReadOnly = $true
 $logBox.ScrollBars = 'Vertical'
-$logBox.Font = New-Object -TypeName System.Drawing.Font -ArgumentList 'Consolas', 9
+Initialize-TextBoxStyle -TextBox $logBox -Mono
 $form.Controls.Add($logBox)
 
 $serverProcess = $null
 $desktopSessionId = $null
+$lastServerStdErr = ''
+$lastServerStdOut = ''
 
 function Invoke-DesktopApi {
   param(
@@ -438,6 +568,11 @@ function Invoke-DesktopApi {
 function Set-Summary {
   param([string]$Text)
   $summaryBox.Text = ('Latest response: {0}' -f $Text)
+}
+
+function Set-Info {
+  param([string]$Text)
+  $infoBox.Text = $Text
 }
 
 function Set-PreviewImage {
@@ -517,11 +652,11 @@ function Refresh-DesktopState {
 }
 
 function Get-BaseUrl {
-  $host = $hostInput.Text.Trim()
-  $port = $portInput.Text.Trim()
-  if (-not $host) { $host = '127.0.0.1' }
-  if (-not $port) { $port = '3210' }
-  return ('http://{0}:{1}' -f $host, $port)
+  $targetHost = $hostInput.Text.Trim()
+  $targetPort = $portInput.Text.Trim()
+  if (-not $targetHost) { $targetHost = '127.0.0.1' }
+  if (-not $targetPort) { $targetPort = '3210' }
+  return ('http://{0}:{1}' -f $targetHost, $targetPort)
 }
 
 function Update-UiState {
@@ -546,9 +681,11 @@ function Update-UiState {
 
   if ($running) {
     $statusLabel.Text = 'Status: running'
+    $statusLabel.ForeColor = $colorPrimary
     $endpointLabel.Text = "Endpoint: $(Get-BaseUrl)"
   } else {
     $statusLabel.Text = 'Status: stopped'
+    $statusLabel.ForeColor = $colorMuted
     $endpointLabel.Text = 'Endpoint: -'
   }
 
@@ -603,6 +740,7 @@ $startButton.Add_Click({
       param($sender, $args)
       if ($args.Data) {
         $form.BeginInvoke([Action]{
+          $script:lastServerStdOut = $args.Data
           Append-Log -TextBox $logBox -Message $args.Data
         }) | Out-Null
       }
@@ -611,13 +749,23 @@ $startButton.Add_Click({
       param($sender, $args)
       if ($args.Data) {
         $form.BeginInvoke([Action]{
+          $script:lastServerStdErr = $args.Data
           Append-Log -TextBox $logBox -Message "ERR $($args.Data)"
         }) | Out-Null
       }
     })
     $serverProcess.add_Exited({
       $form.BeginInvoke([Action]{
-        Append-Log -TextBox $logBox -Message 'Desktop service exited'
+        $exitCode = $sender.ExitCode
+        $detail = if ($script:lastServerStdErr) {
+          $script:lastServerStdErr
+        } elseif ($script:lastServerStdOut) {
+          $script:lastServerStdOut
+        } else {
+          'No stderr captured'
+        }
+        Append-Log -TextBox $logBox -Message "Desktop service exited with code $exitCode"
+        Set-Info -Text ("Desktop service exited with code {0}`r`nLast detail: {1}" -f $exitCode, $detail)
         $script:serverProcess = $null
         Update-UiState
       }) | Out-Null
@@ -628,13 +776,19 @@ $startButton.Add_Click({
     }
     $serverProcess.BeginOutputReadLine()
     $serverProcess.BeginErrorReadLine()
+    $lastServerStdErr = ''
+    $lastServerStdOut = ''
     Append-Log -TextBox $logBox -Message "Desktop service started PID=$($serverProcess.Id)"
+    Set-Info -Text ("Desktop service is starting...`r`nEndpoint: {0}" -f (Get-BaseUrl))
     Update-UiState
     Start-Sleep -Milliseconds 600
     Refresh-DesktopState
   } catch {
-    Append-Log -TextBox $logBox -Message "Start failed: $($_.Exception.Message)"
-    [System.Windows.Forms.MessageBox]::Show("Start failed: $($_.Exception.Message)", 'MetaAgent-PC', 'OK', 'Error') | Out-Null
+    Show-ErrorDetails `
+      -InfoTextBox $infoBox `
+      -LogTextBox $logBox `
+      -Title 'Start failed:' `
+      -Message $_.Exception.Message
     $serverProcess = $null
     Update-UiState
   }

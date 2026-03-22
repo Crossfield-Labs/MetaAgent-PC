@@ -3,6 +3,7 @@ import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 import {
   captureDesktopScreenshot,
   clickMouse,
+  clickMouseCurrent,
   dragMouse,
   getClipboardText,
   getDesktopCapabilities,
@@ -10,6 +11,7 @@ import {
   listDesktopWindows,
   launchApp,
   moveMouse,
+  moveMouseRelative,
   pressKey,
   pressHotkey,
   scrollMouse,
@@ -19,8 +21,18 @@ import {
 import {
   DESKTOP_REMOTE_API_HOST,
   DESKTOP_REMOTE_API_PORT,
+  DESKTOP_REMOTE_ADMIN_TOKEN,
   DESKTOP_REMOTE_API_TOKEN,
 } from '../config.js';
+import {
+  authenticatePairing,
+  decidePairingRequest,
+  getPairingRequest,
+  getPairingSettings,
+  listPendingPairingRequests,
+  requestPairing,
+  updatePairingSettings,
+} from './pairing-manager.js';
 import {
   getActiveSession,
   startRemoteControl,
@@ -34,6 +46,7 @@ import {
   openDesktopSession,
   publishDesktopEvent,
   subscribeDesktopEvents,
+  validateDesktopSessionToken,
 } from './session-manager.js';
 import { logger } from '../logger.js';
 
@@ -46,6 +59,11 @@ interface StartRequest {
 interface MouseMoveRequest {
   x: number;
   y: number;
+}
+
+interface MouseMoveRelativeRequest {
+  deltaX: number;
+  deltaY: number;
 }
 
 interface MouseClickRequest extends MouseMoveRequest {
@@ -98,6 +116,26 @@ interface CloseSessionRequest {
   sessionId?: string;
 }
 
+interface PairingRequestBody {
+  deviceName?: string;
+}
+
+interface PairingAuthRequest {
+  pairingId: string;
+  password: string;
+  clientName?: string;
+}
+
+interface PairingDecisionRequest {
+  pairingId: string;
+  approve: boolean;
+}
+
+interface PairingSettingsRequest {
+  autoApprove?: boolean;
+  password?: string;
+}
+
 function sendJson(res: ServerResponse, statusCode: number, payload: unknown): void {
   const body = JSON.stringify(payload, null, 2);
   res.writeHead(statusCode, {
@@ -122,16 +160,32 @@ function methodNotAllowed(res: ServerResponse): void {
   sendJson(res, 405, { ok: false, error: 'Method not allowed' });
 }
 
-function isAuthorized(req: IncomingMessage): boolean {
-  if (!DESKTOP_REMOTE_API_TOKEN) {
-    return true;
-  }
+function bearerToken(req: IncomingMessage): string {
   const authHeader = req.headers.authorization?.trim() || '';
   if (!authHeader.toLowerCase().startsWith('bearer ')) {
+    return '';
+  }
+  return authHeader.slice(7).trim();
+}
+
+function isAdminAuthorized(req: IncomingMessage): boolean {
+  if (!DESKTOP_REMOTE_ADMIN_TOKEN) {
     return false;
   }
-  const token = authHeader.slice(7).trim();
-  return token === DESKTOP_REMOTE_API_TOKEN;
+  const adminHeader = req.headers['x-desktop-admin-token'];
+  const token = Array.isArray(adminHeader) ? adminHeader[0] : adminHeader;
+  return (token || '').trim() === DESKTOP_REMOTE_ADMIN_TOKEN;
+}
+
+function isApiAuthorized(req: IncomingMessage): boolean {
+  const token = bearerToken(req);
+  if (DESKTOP_REMOTE_API_TOKEN && token === DESKTOP_REMOTE_API_TOKEN) {
+    return true;
+  }
+  if (token && validateDesktopSessionToken(token)) {
+    return true;
+  }
+  return false;
 }
 
 async function readJsonBody<T>(req: IncomingMessage): Promise<T | null> {
@@ -172,6 +226,21 @@ function serializeDesktopControlSession() {
     : null;
 }
 
+function serializePairingRequest(pairingId: string) {
+  const request = getPairingRequest(pairingId);
+  return request
+    ? {
+        pairingId: request.id,
+        deviceName: request.deviceName,
+        status: request.status,
+        requestedAt: request.requestedAt,
+        approvedAt: request.approvedAt ?? null,
+        rejectedAt: request.rejectedAt ?? null,
+        expiresAt: request.expiresAt,
+      }
+    : null;
+}
+
 function sendSseEvent(res: ServerResponse, event: string, payload: unknown): void {
   res.write(`event: ${event}\n`);
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -189,11 +258,6 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
-        if (!isAuthorized(req)) {
-          unauthorized(res);
-          return;
-        }
-
         if (method === 'GET' && url.pathname === '/api/desktop/health') {
           sendJson(res, 200, {
             ok: true,
@@ -202,9 +266,136 @@ export function startDesktopRemoteApi(): Promise<Server> {
               hasActiveSession: getActiveSession() !== null,
               hasDesktopSession: getActiveDesktopSession() !== null,
               apiVersion: 1,
+              pairing: getPairingSettings(),
             },
           });
           return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/pair/request') {
+          const body = (await readJsonBody<PairingRequestBody>(req)) || {};
+          const request = requestPairing({ deviceName: body.deviceName });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              request: serializePairingRequest(request.id),
+              pairing: getPairingSettings(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/pair/status') {
+          const pairingId = url.searchParams.get('pairingId') || '';
+          if (!pairingId) {
+            sendJson(res, 400, { ok: false, error: 'Missing pairingId' });
+            return;
+          }
+          const request = serializePairingRequest(pairingId);
+          if (!request) {
+            sendJson(res, 404, { ok: false, error: 'Pairing request not found' });
+            return;
+          }
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              request,
+              pairing: getPairingSettings(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/pair/authenticate') {
+          const body = (await readJsonBody<PairingAuthRequest>(req)) || ({} as PairingAuthRequest);
+          if (!body.pairingId) {
+            sendJson(res, 400, { ok: false, error: 'Missing pairingId' });
+            return;
+          }
+          try {
+            const result = authenticatePairing(body);
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                session: serializeDesktopControlSession(),
+                sessionToken: result.sessionToken,
+              },
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Authentication failed';
+            sendJson(res, 401, { ok: false, error: message });
+          }
+          return;
+        }
+
+        if (url.pathname.startsWith('/api/desktop/pair/admin/')) {
+          if (!isAdminAuthorized(req)) {
+            unauthorized(res);
+            return;
+          }
+
+          if (method === 'GET' && url.pathname === '/api/desktop/pair/admin/state') {
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                pairing: getPairingSettings(),
+                pendingRequests: listPendingPairingRequests().map((request) => ({
+                  pairingId: request.id,
+                  deviceName: request.deviceName,
+                  status: request.status,
+                  requestedAt: request.requestedAt,
+                  expiresAt: request.expiresAt,
+                })),
+              },
+            });
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/api/desktop/pair/admin/decision') {
+            const body = (await readJsonBody<PairingDecisionRequest>(req)) || ({} as PairingDecisionRequest);
+            if (!body.pairingId) {
+              sendJson(res, 400, { ok: false, error: 'Missing pairingId' });
+              return;
+            }
+            const request = decidePairingRequest(body.pairingId, body.approve);
+            if (!request) {
+              sendJson(res, 404, { ok: false, error: 'Pending pairing request not found' });
+              return;
+            }
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                request: serializePairingRequest(request.id),
+              },
+            });
+            return;
+          }
+
+          if (method === 'POST' && url.pathname === '/api/desktop/pair/admin/settings') {
+            const body = (await readJsonBody<PairingSettingsRequest>(req)) || {};
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                pairing: updatePairingSettings(body),
+              },
+            });
+            return;
+          }
+
+          methodNotAllowed(res);
+          return;
+        }
+
+        if (
+          !(
+            method === 'GET' && url.pathname === '/api/desktop/health'
+          ) &&
+          !url.pathname.startsWith('/api/desktop/pair/')
+        ) {
+          if (!isApiAuthorized(req)) {
+            unauthorized(res);
+            return;
+          }
         }
 
         if (method === 'GET' && url.pathname === '/api/desktop/capabilities') {
@@ -395,6 +586,53 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
+        if (method === 'GET' && url.pathname === '/api/desktop/stream') {
+          res.writeHead(200, {
+            'Content-Type': 'multipart/x-mixed-replace; boundary=frame',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          });
+
+          let closed = false;
+          let busy = false;
+          const sendFrame = async () => {
+            if (closed || busy) {
+              return;
+            }
+            busy = true;
+            try {
+              const screenshot = await captureDesktopScreenshot();
+              const bytes = Buffer.from(screenshot.base64, 'base64');
+              res.write(`--frame\r\n`);
+              res.write(`Content-Type: ${screenshot.mimeType}\r\n`);
+              res.write(`Content-Length: ${bytes.length}\r\n`);
+              res.write(`X-Width: ${screenshot.width}\r\n`);
+              res.write(`X-Height: ${screenshot.height}\r\n\r\n`);
+              res.write(bytes);
+              res.write(`\r\n`);
+            } catch (err) {
+              logger.warn({ err }, 'Desktop stream frame capture failed');
+            } finally {
+              busy = false;
+            }
+          };
+
+          void sendFrame();
+          const timer = setInterval(() => {
+            void sendFrame();
+          }, 160);
+
+          req.on('close', () => {
+            closed = true;
+            clearInterval(timer);
+            res.end();
+          });
+          return;
+        }
+
         if (method === 'GET' && url.pathname === '/api/desktop/screenshot') {
           const screenshot = await captureDesktopScreenshot();
           publishDesktopEvent('desktop.screenshot', {
@@ -424,16 +662,34 @@ export function startDesktopRemoteApi(): Promise<Server> {
           return;
         }
 
-        if (method === 'POST' && url.pathname === '/api/desktop/input/click') {
-          const body = await readJsonBody<MouseClickRequest>(req);
-          if (!body || typeof body.x !== 'number' || typeof body.y !== 'number') {
-            sendJson(res, 400, { ok: false, error: 'Missing x/y' });
+        if (method === 'POST' && url.pathname === '/api/desktop/input/move-relative') {
+          const body = await readJsonBody<MouseMoveRelativeRequest>(req);
+          if (!body || typeof body.deltaX !== 'number' || typeof body.deltaY !== 'number') {
+            sendJson(res, 400, { ok: false, error: 'Missing deltaX/deltaY' });
             return;
           }
-          const result = await clickMouse(body.x, body.y, body.button || 'left');
+          const result = await moveMouseRelative(body.deltaX, body.deltaY);
+          publishDesktopEvent('desktop.input.move_relative', {
+            deltaX: body.deltaX,
+            deltaY: body.deltaY,
+          });
+          sendJson(res, 200, { ok: true, data: result });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/input/click') {
+          const body = await readJsonBody<MouseClickRequest>(req);
+          if (!body) {
+            sendJson(res, 400, { ok: false, error: 'Missing request body' });
+            return;
+          }
+          const result =
+            typeof body.x === 'number' && typeof body.y === 'number'
+              ? await clickMouse(body.x, body.y, body.button || 'left')
+              : await clickMouseCurrent(body.button || 'left');
           publishDesktopEvent('desktop.input.click', {
-            x: body.x,
-            y: body.y,
+            x: body.x ?? null,
+            y: body.y ?? null,
             button: body.button || 'left',
           });
           sendJson(res, 200, { ok: true, data: result });
@@ -575,6 +831,7 @@ export function startDesktopRemoteApi(): Promise<Server> {
           host: DESKTOP_REMOTE_API_HOST,
           port: DESKTOP_REMOTE_API_PORT,
           authEnabled: Boolean(DESKTOP_REMOTE_API_TOKEN),
+          pairingEnabled: true,
         },
         'Desktop remote API started',
       );
@@ -584,3 +841,4 @@ export function startDesktopRemoteApi(): Promise<Server> {
     server.on('error', reject);
   });
 }
+

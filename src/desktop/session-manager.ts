@@ -9,6 +9,7 @@ export interface DesktopControlSession {
   openedAt: string;
   lastSeenAt: string;
   expiresAt: string;
+  authToken: string;
 }
 
 export interface DesktopEvent {
@@ -89,6 +90,7 @@ export function openDesktopSession(
     openedAt: currentTime.toISOString(),
     lastSeenAt: currentTime.toISOString(),
     expiresAt: withExpiry(currentTime),
+    authToken: randomUUID().replace(/-/g, ''),
   };
 
   emitEvent('session.opened', {
@@ -141,6 +143,14 @@ export function closeDesktopSession(sessionId?: string): boolean {
     clientName: session.clientName,
   });
   return true;
+}
+
+export function validateDesktopSessionToken(token: string): boolean {
+  const session = getActiveDesktopSession();
+  if (!session) {
+    return false;
+  }
+  return session.authToken === token;
 }
 
 export function publishDesktopEvent(
