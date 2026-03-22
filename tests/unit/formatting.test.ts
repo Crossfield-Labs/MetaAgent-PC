@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 
-import { ASSISTANT_NAME, TRIGGER_PATTERN } from './config.js';
+import { ASSISTANT_NAME, TRIGGER_PATTERN } from '../../src/config.js';
 import {
   escapeXml,
   formatMessages,
   formatOutbound,
   stripInternalTags,
-} from './router.js';
-import { NewMessage } from './types.js';
+} from '../../src/router.js';
+import { NewMessage } from '../../src/types.js';
 
 function makeMsg(overrides: Partial<NewMessage> = {}): NewMessage {
   return {
@@ -254,3 +254,4 @@ describe('trigger gating (requiresTrigger interaction)', () => {
     expect(shouldProcess(false, false, msgs)).toBe(true);
   });
 });
+

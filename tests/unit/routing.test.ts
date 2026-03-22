@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { _initTestDatabase, getAllChats, storeChatMetadata } from './db.js';
-import { getAvailableGroups, _setRegisteredGroups } from './index.js';
+import { _initTestDatabase, getAllChats, storeChatMetadata } from '../../src/db.js';
+import { getAvailableGroups, _setRegisteredGroups } from '../../src/index.js';
 
 beforeEach(() => {
   _initTestDatabase();
@@ -168,3 +168,4 @@ describe('getAvailableGroups', () => {
     expect(groups).toHaveLength(0);
   });
 });
+

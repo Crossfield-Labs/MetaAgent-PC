@@ -3,7 +3,7 @@ import type { AddressInfo } from 'net';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetDesktopSessionManagerForTests,
-} from './session-manager.js';
+} from '../../../src/desktop/session-manager.js';
 
 const mockConfig = {
   DESKTOP_REMOTE_API_HOST: '127.0.0.1',
@@ -30,7 +30,7 @@ const sendTextMock = vi.fn();
 const startRemoteControlMock = vi.fn();
 const stopRemoteControlMock = vi.fn();
 
-vi.mock('../config.js', () => ({
+vi.mock('../../../src/config.js', () => ({
   get DESKTOP_REMOTE_API_HOST() {
     return mockConfig.DESKTOP_REMOTE_API_HOST;
   },
@@ -45,13 +45,13 @@ vi.mock('../config.js', () => ({
   },
 }));
 
-vi.mock('./remote-control.js', () => ({
+vi.mock('../../../src/desktop/remote-control.js', () => ({
   getActiveSession: (...args: unknown[]) => getActiveSessionMock(...args),
   startRemoteControl: (...args: unknown[]) => startRemoteControlMock(...args),
   stopRemoteControl: (...args: unknown[]) => stopRemoteControlMock(...args),
 }));
 
-vi.mock('./control.js', () => ({
+vi.mock('../../../src/desktop/control.js', () => ({
   captureDesktopScreenshot: (...args: unknown[]) =>
     captureDesktopScreenshotMock(...args),
   clickMouse: (...args: unknown[]) => clickMouseMock(...args),
@@ -70,11 +70,11 @@ vi.mock('./control.js', () => ({
   sendText: (...args: unknown[]) => sendTextMock(...args),
 }));
 
-vi.mock('../logger.js', () => ({
+vi.mock('../../../src/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
 }));
 
-import { startDesktopRemoteApi } from './remote-api.js';
+import { startDesktopRemoteApi } from '../../../src/desktop/remote-api.js';
 
 async function makeRequest(
   port: number,
@@ -681,3 +681,4 @@ describe('desktop-remote-api', () => {
     });
   });
 });
+

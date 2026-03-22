@@ -4,7 +4,7 @@ import {
   registerChannel,
   getChannelFactory,
   getRegisteredChannelNames,
-} from './registry.js';
+} from '../../../src/channels/registry.js';
 
 // The registry is module-level state, so we need a fresh module per test.
 // We use dynamic import with cache-busting to isolate tests.
@@ -40,3 +40,4 @@ describe('channel registry', () => {
     expect(getChannelFactory('overwrite-test')).toBe(factory2);
   });
 });
+

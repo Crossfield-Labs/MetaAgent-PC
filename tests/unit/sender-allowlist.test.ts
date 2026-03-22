@@ -9,7 +9,7 @@ import {
   loadSenderAllowlist,
   SenderAllowlistConfig,
   shouldDropMessage,
-} from './sender-allowlist.js';
+} from '../../src/sender-allowlist.js';
 
 let tmpDir: string;
 
@@ -211,6 +211,7 @@ describe('isTriggerAllowed', () => {
       logDenied: true,
     };
     isTriggerAllowed('g1', 'eve', cfg);
-    // Logger.debug is called â€” we just verify no crash; logger is a real pino instance
+    // Logger.debug is called â€?we just verify no crash; logger is a real pino instance
   });
 });
+

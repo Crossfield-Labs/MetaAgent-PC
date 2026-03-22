@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock logger
-vi.mock('./logger.js', () => ({
+vi.mock('../../src/logger.js', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -10,7 +10,7 @@ vi.mock('./logger.js', () => ({
   },
 }));
 
-// Mock child_process â€” store the mock fn so tests can configure it
+// Mock child_process â€?store the mock fn so tests can configure it
 const mockExecSync = vi.fn();
 vi.mock('child_process', () => ({
   execSync: (...args: unknown[]) => mockExecSync(...args),
@@ -22,8 +22,8 @@ import {
   stopContainer,
   ensureContainerRuntimeRunning,
   cleanupOrphans,
-} from './container-runtime.js';
-import { logger } from './logger.js';
+} from '../../src/container-runtime.js';
+import { logger } from '../../src/logger.js';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -147,3 +147,4 @@ describe('cleanupOrphans', () => {
     );
   });
 });
+

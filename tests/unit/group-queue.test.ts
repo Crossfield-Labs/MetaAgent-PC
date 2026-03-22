@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-import { GroupQueue } from './group-queue.js';
+import { GroupQueue } from '../../src/group-queue.js';
 
 // Mock config to control concurrency limit
-vi.mock('./config.js', () => ({
+vi.mock('../../src/config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-test-data',
   MAX_CONCURRENT_CONTAINERS: 2,
 }));
@@ -91,7 +91,7 @@ describe('GroupQueue', () => {
     expect(maxActive).toBe(2);
     expect(activeCount).toBe(2);
 
-    // Complete one â€” third should start
+    // Complete one â€?third should start
     completionCallbacks[0]();
     await vi.advanceTimersByTimeAsync(10);
 
@@ -205,7 +205,7 @@ describe('GroupQueue', () => {
       expect(callCount).toBe(i + 2);
     }
 
-    // After 5 retries (6 total calls), should stop â€” no more retries
+    // After 5 retries (6 total calls), should stop â€?no more retries
     const countAfterMaxRetries = callCount;
     await vi.advanceTimersByTimeAsync(200000); // Wait a long time
     expect(callCount).toBe(countAfterMaxRetries);
@@ -256,12 +256,12 @@ describe('GroupQueue', () => {
       });
     });
 
-    // Start the task (runs immediately â€” slot available)
+    // Start the task (runs immediately â€?slot available)
     queue.enqueueTask('group1@g.us', 'task-1', taskFn);
     await vi.advanceTimersByTimeAsync(10);
     expect(taskCallCount).toBe(1);
 
-    // Scheduler poll re-discovers the same task while it's running â€”
+    // Scheduler poll re-discovers the same task while it's running â€?
     // this must be silently dropped
     const dupFn = vi.fn(async () => {});
     queue.enqueueTask('group1@g.us', 'task-1', dupFn);
@@ -387,10 +387,10 @@ describe('GroupQueue', () => {
     // Container becomes idle
     queue.notifyIdle('group1@g.us');
 
-    // A new user message arrives â€” resets idleWaiting
+    // A new user message arrives â€?resets idleWaiting
     queue.sendMessage('group1@g.us', 'hello');
 
-    // Task enqueued after message reset â€” should NOT preempt (agent is working)
+    // Task enqueued after message reset â€?should NOT preempt (agent is working)
     const writeFileSync = vi.mocked(fs.default.writeFileSync);
     writeFileSync.mockClear();
 
@@ -425,7 +425,7 @@ describe('GroupQueue', () => {
       'test-group',
     );
 
-    // sendMessage should return false â€” user messages must not go to task containers
+    // sendMessage should return false â€?user messages must not go to task containers
     const result = queue.sendMessage('group1@g.us', 'hello');
     expect(result).toBe(false);
 
@@ -450,7 +450,7 @@ describe('GroupQueue', () => {
     queue.enqueueMessageCheck('group1@g.us');
     await vi.advanceTimersByTimeAsync(10);
 
-    // Register process and enqueue a task (no idle yet â€” no preemption)
+    // Register process and enqueue a task (no idle yet â€?no preemption)
     queue.registerProcess(
       'group1@g.us',
       {} as any,
@@ -469,7 +469,7 @@ describe('GroupQueue', () => {
     );
     expect(closeWrites).toHaveLength(0);
 
-    // Now container becomes idle â€” should preempt because task is pending
+    // Now container becomes idle â€?should preempt because task is pending
     writeFileSync.mockClear();
     queue.notifyIdle('group1@g.us');
 
@@ -482,3 +482,4 @@ describe('GroupQueue', () => {
     await vi.advanceTimersByTimeAsync(10);
   });
 });
+

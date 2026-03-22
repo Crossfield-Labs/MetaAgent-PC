@@ -13,7 +13,7 @@ import {
   storeChatMetadata,
   storeMessage,
   updateTask,
-} from './db.js';
+} from '../../src/db.js';
 
 beforeEach(() => {
   _initTestDatabase();
@@ -100,7 +100,7 @@ describe('storeMessage', () => {
       is_from_me: true,
     });
 
-    // Message is stored (we can retrieve it â€” is_from_me doesn't affect retrieval)
+    // Message is stored (we can retrieve it â€?is_from_me doesn't affect retrieval)
     const messages = getMessagesSince(
       'group@g.us',
       '2024-01-01T00:00:00.000Z',
@@ -482,3 +482,4 @@ describe('registered group isMain', () => {
     expect(group.isMain).toBeUndefined();
   });
 });
+

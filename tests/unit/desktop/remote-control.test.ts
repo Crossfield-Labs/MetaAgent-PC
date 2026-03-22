@@ -2,7 +2,7 @@ import fs from 'fs';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Mock config before importing the module under test
-vi.mock('../config.js', () => ({
+vi.mock('../../../src/config.js', () => ({
   DATA_DIR: '/tmp/nanoclaw-rc-test',
 }));
 
@@ -19,7 +19,7 @@ import {
   getActiveSession,
   _resetForTesting,
   _getStateFilePath,
-} from './remote-control.js';
+} from '../../../src/desktop/remote-control.js';
 
 // --- Helpers ---
 
@@ -340,7 +340,7 @@ describe('remote-control', () => {
       expect(unlinkSyncSpy).toHaveBeenCalled();
     });
 
-    // ** This is the key integration test: restore â†’ stop must work **
+    // ** This is the key integration test: restore â†?stop must work **
     it('stopRemoteControl works after restoreRemoteControl', () => {
       const session = {
         pid: 77777,
@@ -395,3 +395,4 @@ describe('remote-control', () => {
     });
   });
 });
+

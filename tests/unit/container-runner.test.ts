@@ -7,7 +7,7 @@ const OUTPUT_START_MARKER = '---NANOCLAW_OUTPUT_START---';
 const OUTPUT_END_MARKER = '---NANOCLAW_OUTPUT_END---';
 
 // Mock config
-vi.mock('./config.js', () => ({
+vi.mock('../../src/config.js', () => ({
   CONTAINER_IMAGE: 'nanoclaw-agent:latest',
   CONTAINER_MAX_OUTPUT_SIZE: 10485760,
   CONTAINER_TIMEOUT: 1800000, // 30min
@@ -19,7 +19,7 @@ vi.mock('./config.js', () => ({
 }));
 
 // Mock logger
-vi.mock('./logger.js', () => ({
+vi.mock('../../src/logger.js', () => ({
   logger: {
     debug: vi.fn(),
     info: vi.fn(),
@@ -47,7 +47,7 @@ vi.mock('fs', async () => {
 });
 
 // Mock mount-security
-vi.mock('./mount-security.js', () => ({
+vi.mock('../../src/mount-security.js', () => ({
   validateAdditionalMounts: vi.fn(() => []),
 }));
 
@@ -86,8 +86,8 @@ vi.mock('child_process', async () => {
   };
 });
 
-import { runContainerAgent, ContainerOutput } from './container-runner.js';
-import type { RegisteredGroup } from './types.js';
+import { runContainerAgent, ContainerOutput } from '../../src/container-runner.js';
+import type { RegisteredGroup } from '../../src/types.js';
 
 const testGroup: RegisteredGroup = {
   name: 'Test Group',
@@ -166,7 +166,7 @@ describe('container-runner timeout behavior', () => {
       onOutput,
     );
 
-    // No output emitted â€” fire the hard timeout
+    // No output emitted â€?fire the hard timeout
     await vi.advanceTimersByTimeAsync(1830000);
 
     // Emit close event
@@ -208,3 +208,4 @@ describe('container-runner timeout behavior', () => {
     expect(result.newSessionId).toBe('session-456');
   });
 });
+
