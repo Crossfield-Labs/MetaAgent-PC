@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Prepare release bundle
+        id: prepare_release_bundle
+        shell: pwsh
+        run: |
+          $bundleRoot = Join-Path $env:RUNNER_TEMP 'metaagent-pc-release'
+          $bundleDir = Join-Path $bundleRoot 'MetaAgent-PC'
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+
+          Copy-Item README.md, LICENSE, package.json -Destination $bundleDir
+          Copy-Item electron -Destination $bundleDir -Recurse
+          Copy-Item scripts -Destination $bundleDir -Recurse
+          Copy-Item dist -Destination $bundleDir -Recurse
+          if (Test-Path .env.example) {
+            Copy-Item .env.example -Destination $bundleDir
+          }
+
+          $zipPath = Join-Path $env:RUNNER_TEMP 'MetaAgent-PC-${{ github.ref_name }}-windows.zip'
+          Compress-Archive -Path (Join-Path $bundleDir '*') -DestinationPath $zipPath -Force
+          "zip_path=$zipPath" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ${{ steps.prepare_release_bundle.outputs.zip_path }}

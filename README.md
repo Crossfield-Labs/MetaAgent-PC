@@ -1,245 +1,120 @@
-<p align="center">
-  <img src="assets/nanoclaw-logo.png" alt="NanoClaw" width="400">
-</p>
+# MetaAgent-PC
 
-<p align="center">
-  MetaAgent-PC is a desktop companion derived from NanoClaw, adapted for the MetaAgent project.
-</p>
+MetaAgent-PC 是 `MetaAgent` 项目的电脑端组件。这个仓库来源于 NanoClaw 的下游二次开发，目前由 `Crossfield-Labs` 维护，用于 `MetaAgent` 项目的桌面控制与联动能力。
 
-<p align="center">
-  <a href="https://nanoclaw.dev">nanoclaw.dev</a>&nbsp; • &nbsp;
-  <a href="README_zh.md">中文</a>&nbsp; • &nbsp;
-  <a href="README_ja.md">日本語</a>&nbsp; • &nbsp;
-  <a href="https://discord.gg/VDdww8qS42"><img src="https://img.shields.io/discord/1470188214710046894?label=Discord&logo=discord&v=2" alt="Discord" valign="middle"></a>&nbsp; • &nbsp;
-  <a href="repo-tokens"><img src="repo-tokens/badge.svg" alt="34.9k tokens, 17% of context window" valign="middle"></a>
-</p>
+## 项目标识
 
----
+- 项目名：`MetaAgent-PC`
+- 组织：`Crossfield-Labs`
+- 小组：`concrete.ai`（`转专业都队`）
+- 最终项目名：`MetaAgent`
 
-## MetaAgent-PC
+上游 NanoClaw 的 MIT 许可证继续有效。本仓库保留上游署名，并在 `LICENSE` 中加入了当前项目的下游署名。
 
-This repository is a downstream fork of NanoClaw, maintained by Crossfield-Labs for the MetaAgent project.
+## 这个仓库现在做什么
 
-- Project name: `MetaAgent-PC`
-- Organization: `Crossfield-Labs`
-- Team name: `concrete.ai` (`转专业都队`)
-- Final project family name: `MetaAgent`
+这个仓库已经不是老 README 里描述的通用 NanoClaw 助手框架了。当前版本的核心目标，是作为 `MetaAgent` 的电脑端被控端与调试控制台。
 
-The original NanoClaw license remains in effect under MIT. This fork keeps the upstream copyright notice and adds downstream attribution in [LICENSE](D:/works/nanoclaw/LICENSE).
+目前主要能力包括：
 
----
+- Windows 桌面控制 HTTP 服务
+- Android 与 PC 的配对流程
+- 配对成功后签发临时会话令牌
+- 桌面截图与持续桌面预览流
+- 鼠标与键盘控制
+- 剪贴板、窗口列表、系统信息、启动应用等桌面辅助能力
+- 基于 Electron 的桌面控制台，用于本地启动、授权确认、日志查看和调试
 
-<h2 align="center">🐳 Now Runs in Docker Sandboxes</h2>
-<p align="center">Every agent gets its own isolated container inside a micro VM.<br>Hypervisor-level isolation. Millisecond startup. No complex setup.</p>
+预期工作流是：
 
-**macOS (Apple Silicon)**
-```bash
-curl -fsSL https://nanoclaw.dev/install-docker-sandboxes.sh | bash
-```
+1. 在 Windows 电脑上启动 MetaAgent-PC。
+2. 在 Android 端打开 MetaAgent。
+3. 让手机与电脑完成配对。
+4. 由手机查看桌面预览并控制电脑。
 
-**Windows (WSL)**
-```bash
-curl -fsSL https://nanoclaw.dev/install-docker-sandboxes-windows.sh | bash
-```
+## 当前技术栈
 
-> Currently supported on macOS (Apple Silicon) and Windows (x86). Linux support coming soon.
-
-<p align="center"><a href="https://nanoclaw.dev/blog/nanoclaw-docker-sandboxes">Read the announcement →</a>&nbsp; · &nbsp;<a href="docs/docker-sandboxes.md">Manual setup guide →</a></p>
-
----
-
-## Why I Built NanoClaw
-
-[OpenClaw](https://github.com/openclaw/openclaw) is an impressive project, but I wouldn't have been able to sleep if I had given complex software I didn't understand full access to my life. OpenClaw has nearly half a million lines of code, 53 config files, and 70+ dependencies. Its security is at the application level (allowlists, pairing codes) rather than true OS-level isolation. Everything runs in one Node process with shared memory.
-
-NanoClaw provides that same core functionality, but in a codebase small enough to understand: one process and a handful of files. Claude agents run in their own Linux containers with filesystem isolation, not merely behind permission checks.
-
-## Quick Start
-
-```bash
-gh repo fork qwibitai/nanoclaw --clone
-cd nanoclaw
-claude
-```
-
-<details>
-<summary>Without GitHub CLI</summary>
-
-1. Fork [qwibitai/nanoclaw](https://github.com/qwibitai/nanoclaw) on GitHub (click the Fork button)
-2. `git clone https://github.com/<your-username>/nanoclaw.git`
-3. `cd nanoclaw`
-4. `claude`
-
-</details>
-
-Then run `/setup`. Claude Code handles everything: dependencies, authentication, container setup and service configuration.
-
-> **Note:** Commands prefixed with `/` (like `/setup`, `/add-whatsapp`) are [Claude Code skills](https://code.claude.com/docs/en/skills). Type them inside the `claude` CLI prompt, not in your regular terminal. If you don't have Claude Code installed, get it at [claude.com/product/claude-code](https://claude.com/product/claude-code).
-
-## Philosophy
-
-**Small enough to understand.** One process, a few source files and no microservices. If you want to understand the full NanoClaw codebase, just ask Claude Code to walk you through it.
-
-**Secure by isolation.** Agents run in Linux containers (Apple Container on macOS, or Docker) and they can only see what's explicitly mounted. Bash access is safe because commands run inside the container, not on your host.
-
-**Built for the individual user.** NanoClaw isn't a monolithic framework; it's software that fits each user's exact needs. Instead of becoming bloatware, NanoClaw is designed to be bespoke. You make your own fork and have Claude Code modify it to match your needs.
-
-**Customization = code changes.** No configuration sprawl. Want different behavior? Modify the code. The codebase is small enough that it's safe to make changes.
-
-**AI-native.**
-- No installation wizard; Claude Code guides setup.
-- No monitoring dashboard; ask Claude what's happening.
-- No debugging tools; describe the problem and Claude fixes it.
-
-**Skills over features.** Instead of adding features (e.g. support for Telegram) to the codebase, contributors submit [claude code skills](https://code.claude.com/docs/en/skills) like `/add-telegram` that transform your fork. You end up with clean code that does exactly what you need.
-
-**Best harness, best model.** NanoClaw runs on the Claude Agent SDK, which means you're running Claude Code directly. Claude Code is highly capable and its coding and problem-solving capabilities allow it to modify and expand NanoClaw and tailor it to each user.
-
-## What It Supports
-
-- **Multi-channel messaging** - Talk to your assistant from WhatsApp, Telegram, Discord, Slack, or Gmail. Add channels with skills like `/add-whatsapp` or `/add-telegram`. Run one or many at the same time.
-- **Isolated group context** - Each group has its own `CLAUDE.md` memory, isolated filesystem, and runs in its own container sandbox with only that filesystem mounted to it.
-- **Main channel** - Your private channel (self-chat) for admin control; every group is completely isolated
-- **Scheduled tasks** - Recurring jobs that run Claude and can message you back
-- **Web access** - Search and fetch content from the Web
-- **Container isolation** - Agents are sandboxed in [Docker Sandboxes](https://nanoclaw.dev/blog/nanoclaw-docker-sandboxes) (micro VM isolation), Apple Container (macOS), or Docker (macOS/Linux)
-- **Agent Swarms** - Spin up teams of specialized agents that collaborate on complex tasks
-- **Optional integrations** - Add Gmail (`/add-gmail`) and more via skills
-
-## Usage
-
-Talk to your assistant with the trigger word (default: `@Andy`):
-
-```
-@Andy send an overview of the sales pipeline every weekday morning at 9am (has access to my Obsidian vault folder)
-@Andy review the git history for the past week each Friday and update the README if there's drift
-@Andy every Monday at 8am, compile news on AI developments from Hacker News and TechCrunch and message me a briefing
-```
-
-From the main channel (your self-chat), you can manage groups and tasks:
-```
-@Andy list all scheduled tasks across groups
-@Andy pause the Monday briefing task
-@Andy join the Family Chat group
-```
-
-## Customizing
-
-NanoClaw doesn't use configuration files. To make changes, just tell Claude Code what you want:
-
-- "Change the trigger word to @Bob"
-- "Remember in the future to make responses shorter and more direct"
-- "Add a custom greeting when I say good morning"
-- "Store conversation summaries weekly"
-
-Or run `/customize` for guided changes.
-
-The codebase is small enough that Claude can safely modify it.
-
-## Contributing
-
-**Don't add features. Add skills.**
-
-If you want to add Telegram support, don't create a PR that adds Telegram to the core codebase. Instead, fork NanoClaw, make the code changes on a branch, and open a PR. We'll create a `skill/telegram` branch from your PR that other users can merge into their fork.
-
-Users then run `/add-telegram` on their fork and get clean code that does exactly what they need, not a bloated system trying to support every use case.
-
-### RFS (Request for Skills)
-
-Skills we'd like to see:
-
-**Communication Channels**
-- `/add-signal` - Add Signal as a channel
-
-**Session Management**
-- `/clear` - Add a `/clear` command that compacts the conversation (summarizes context while preserving critical information in the same session). Requires figuring out how to trigger compaction programmatically via the Claude Agent SDK.
-
-## Requirements
-
-- macOS or Linux
 - Node.js 20+
-- [Claude Code](https://claude.ai/download)
-- [Apple Container](https://github.com/apple/container) (macOS) or [Docker](https://docker.com/products/docker-desktop) (macOS/Linux)
+- TypeScript
+- Electron 桌面控制台
+- 基于 PowerShell 的 Windows 自动化能力
+- 面向 Android 控制端的 HTTP API
 
-## Architecture
+## 快速开始
 
-```
-Channels --> SQLite --> Polling loop --> Container (Claude Agent SDK) --> Response
-```
-
-Single Node.js process. Channels are added via skills and self-register at startup — the orchestrator connects whichever ones have credentials present. Agents execute in isolated Linux containers with filesystem isolation. Only mounted directories are accessible. Per-group message queue with concurrency control. IPC via filesystem.
-
-For the full architecture details, see [docs/SPEC.md](docs/SPEC.md).
-
-Key files:
-- `src/index.ts` - Orchestrator: state, message loop, agent invocation
-- `src/channels/registry.ts` - Channel registry (self-registration at startup)
-- `src/ipc.ts` - IPC watcher and task processing
-- `src/router.ts` - Message formatting and outbound routing
-- `src/group-queue.ts` - Per-group queue with global concurrency limit
-- `src/container-runner.ts` - Spawns streaming agent containers
-- `src/task-scheduler.ts` - Runs scheduled tasks
-- `src/db.ts` - SQLite operations (messages, groups, sessions, state)
-- `groups/*/CLAUDE.md` - Per-group memory
-
-## FAQ
-
-**Why Docker?**
-
-Docker provides cross-platform support (macOS, Linux and even Windows via WSL2) and a mature ecosystem. On macOS, you can optionally switch to Apple Container via `/convert-to-apple-container` for a lighter-weight native runtime.
-
-**Can I run this on Linux?**
-
-Yes. Docker is the default runtime and works on both macOS and Linux. Just run `/setup`.
-
-**Is this secure?**
-
-Agents run in containers, not behind application-level permission checks. They can only access explicitly mounted directories. You should still review what you're running, but the codebase is small enough that you actually can. See [docs/SECURITY.md](docs/SECURITY.md) for the full security model.
-
-**Why no configuration files?**
-
-We don't want configuration sprawl. Every user should customize NanoClaw so that the code does exactly what they want, rather than configuring a generic system. If you prefer having config files, you can tell Claude to add them.
-
-**Can I use third-party or open-source models?**
-
-Yes. NanoClaw supports any Claude API-compatible model endpoint. Set these environment variables in your `.env` file:
+### 1. 安装依赖
 
 ```bash
-ANTHROPIC_BASE_URL=https://your-api-endpoint.com
-ANTHROPIC_AUTH_TOKEN=your-token-here
+npm install
 ```
 
-This allows you to use:
-- Local models via [Ollama](https://ollama.ai) with an API proxy
-- Open-source models hosted on [Together AI](https://together.ai), [Fireworks](https://fireworks.ai), etc.
-- Custom model deployments with Anthropic-compatible APIs
+### 2. 构建项目
 
-Note: The model must support the Anthropic API format for best compatibility.
+```bash
+npm run build
+```
 
-**How do I debug issues?**
+### 3. 启动桌面控制台
 
-Ask Claude Code. "Why isn't the scheduler running?" "What's in the recent logs?" "Why did this message not get a response?" That's the AI-native approach that underlies NanoClaw.
+```bash
+npm run gui
+```
 
-**Why isn't the setup working for me?**
+如果你只想启动桌面控制服务，也可以：
 
-If you have issues, during setup, Claude will try to dynamically fix them. If that doesn't work, run `claude`, then run `/debug`. If Claude finds an issue that is likely affecting other users, open a PR to modify the setup SKILL.md.
+```bash
+npm run desktop
+```
 
-**What changes will be accepted into the codebase?**
+## 桌面控制台
 
-Only security fixes, bug fixes, and clear improvements will be accepted to the base configuration. That's all.
+当前 Electron 控制台提供这些能力：
 
-Everything else (new capabilities, OS compatibility, hardware support, enhancements) should be contributed as skills.
+- 启动与停止桌面服务
+- 配置监听地址与端口
+- 设置配对密码与自动同意
+- 审批手机发起的连接请求
+- 调试桌面控制动作
+- 查看桌面截图预览
+- 查看服务日志与最近事件
 
-This keeps the base system minimal and lets every user customize their installation without inheriting features they don't want.
+## 当前主要接口
 
-## Community
+桌面服务目前主要暴露这些接口：
 
-Questions? Ideas? [Join the Discord](https://discord.gg/VDdww8qS42).
+- `GET /api/desktop/health`
+- `GET /api/desktop/capabilities`
+- `POST /api/desktop/pair/request`
+- `GET /api/desktop/pair/status`
+- `POST /api/desktop/pair/authenticate`
+- `GET /api/desktop/session`
+- `POST /api/desktop/session/heartbeat`
+- `POST /api/desktop/session/close`
+- `GET /api/desktop/screenshot`
+- `GET /api/desktop/stream`
+- `POST /api/desktop/input/move`
+- `POST /api/desktop/input/move-relative`
+- `POST /api/desktop/input/click`
+- `POST /api/desktop/input/type`
+- `POST /api/desktop/input/key`
 
-## Changelog
+另外还有一组只给 Electron 控制台使用的管理接口，用来处理配对请求与授权设置。
 
-See [CHANGELOG.md](CHANGELOG.md) for breaking changes and migration notes.
+## 仓库结构
 
-## License
+当前这个 fork 里，和桌面控制相关的重点目录有：
+
+- `electron/`：Electron 桌面控制台
+- `src/desktop/`：桌面控制后端与 HTTP 接口
+- `tests/unit/desktop/`：桌面侧单元测试
+- `scripts/`：本地启动脚本
+
+## 说明
+
+- 当前项目主要面向 Windows 桌面控制。
+- 当前桌面预览是基于截图流的持续刷新，不是硬件编码的远程桌面协议。
+- 这个仓库已经和原始 NanoClaw 的产品定位明显分叉，旧 README 已经不再适用。
+
+## 许可证
 
 MIT
