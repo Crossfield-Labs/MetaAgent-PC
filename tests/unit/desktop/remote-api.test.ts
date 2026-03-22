@@ -5,10 +5,25 @@ import {
   resetDesktopSessionManagerForTests,
 } from '../../../src/desktop/session-manager.js';
 
-const mockConfig = {
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: {
+    DESKTOP_REMOTE_API_HOST: '127.0.0.1',
+    DESKTOP_REMOTE_API_PORT: 0,
+    DESKTOP_REMOTE_API_TOKEN: '',
+    DESKTOP_REMOTE_PAIR_PASSWORD: '',
+    DESKTOP_REMOTE_AUTO_APPROVE: false,
+    DESKTOP_REMOTE_ADMIN_TOKEN: '',
+    DESKTOP_REMOTE_SESSION_TIMEOUT_MS: 120000,
+  },
+}));
+
+const baseMockConfig = {
   DESKTOP_REMOTE_API_HOST: '127.0.0.1',
   DESKTOP_REMOTE_API_PORT: 0,
   DESKTOP_REMOTE_API_TOKEN: '',
+  DESKTOP_REMOTE_PAIR_PASSWORD: '',
+  DESKTOP_REMOTE_AUTO_APPROVE: false,
+  DESKTOP_REMOTE_ADMIN_TOKEN: '',
   DESKTOP_REMOTE_SESSION_TIMEOUT_MS: 120000,
 };
 
@@ -21,9 +36,11 @@ const getDesktopSystemInfoMock = vi.fn();
 const launchAppMock = vi.fn();
 const listDesktopWindowsMock = vi.fn();
 const moveMouseMock = vi.fn();
+const moveMouseRelativeMock = vi.fn();
 const pressKeyMock = vi.fn();
 const pressHotkeyMock = vi.fn();
 const scrollMouseMock = vi.fn();
+const clickMouseCurrentMock = vi.fn();
 const getActiveSessionMock = vi.fn();
 const setClipboardTextMock = vi.fn();
 const sendTextMock = vi.fn();
@@ -40,6 +57,15 @@ vi.mock('../../../src/config.js', () => ({
   get DESKTOP_REMOTE_API_TOKEN() {
     return mockConfig.DESKTOP_REMOTE_API_TOKEN;
   },
+  get DESKTOP_REMOTE_PAIR_PASSWORD() {
+    return mockConfig.DESKTOP_REMOTE_PAIR_PASSWORD;
+  },
+  get DESKTOP_REMOTE_AUTO_APPROVE() {
+    return mockConfig.DESKTOP_REMOTE_AUTO_APPROVE;
+  },
+  get DESKTOP_REMOTE_ADMIN_TOKEN() {
+    return mockConfig.DESKTOP_REMOTE_ADMIN_TOKEN;
+  },
   get DESKTOP_REMOTE_SESSION_TIMEOUT_MS() {
     return mockConfig.DESKTOP_REMOTE_SESSION_TIMEOUT_MS;
   },
@@ -55,6 +81,7 @@ vi.mock('../../../src/desktop/control.js', () => ({
   captureDesktopScreenshot: (...args: unknown[]) =>
     captureDesktopScreenshotMock(...args),
   clickMouse: (...args: unknown[]) => clickMouseMock(...args),
+  clickMouseCurrent: (...args: unknown[]) => clickMouseCurrentMock(...args),
   dragMouse: (...args: unknown[]) => dragMouseMock(...args),
   getClipboardText: (...args: unknown[]) => getClipboardTextMock(...args),
   getDesktopCapabilities: (...args: unknown[]) =>
@@ -63,6 +90,7 @@ vi.mock('../../../src/desktop/control.js', () => ({
   listDesktopWindows: (...args: unknown[]) => listDesktopWindowsMock(...args),
   launchApp: (...args: unknown[]) => launchAppMock(...args),
   moveMouse: (...args: unknown[]) => moveMouseMock(...args),
+  moveMouseRelative: (...args: unknown[]) => moveMouseRelativeMock(...args),
   pressKey: (...args: unknown[]) => pressKeyMock(...args),
   pressHotkey: (...args: unknown[]) => pressHotkeyMock(...args),
   scrollMouse: (...args: unknown[]) => scrollMouseMock(...args),
@@ -80,6 +108,7 @@ async function makeRequest(
   port: number,
   options: http.RequestOptions,
   body = '',
+  useAuth = true,
 ): Promise<{
   statusCode: number;
   body: string;
@@ -91,6 +120,14 @@ async function makeRequest(
         ...options,
         hostname: '127.0.0.1',
         port,
+        headers: {
+          ...(options.headers || {}),
+          ...(
+            useAuth && mockConfig.DESKTOP_REMOTE_API_TOKEN
+              ? { authorization: `Bearer ${mockConfig.DESKTOP_REMOTE_API_TOKEN}` }
+              : {}
+          ),
+        },
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -117,12 +154,12 @@ describe('desktop-remote-api', () => {
   let port: number;
 
   beforeEach(async () => {
-    mockConfig.DESKTOP_REMOTE_API_HOST = '127.0.0.1';
-    mockConfig.DESKTOP_REMOTE_API_PORT = 0;
-    mockConfig.DESKTOP_REMOTE_API_TOKEN = '';
+    Object.assign(mockConfig, baseMockConfig);
+    mockConfig.DESKTOP_REMOTE_API_TOKEN = 'test-token';
     getActiveSessionMock.mockReset();
     captureDesktopScreenshotMock.mockReset();
     clickMouseMock.mockReset();
+    clickMouseCurrentMock.mockReset();
     dragMouseMock.mockReset();
     getClipboardTextMock.mockReset();
     getDesktopCapabilitiesMock.mockReset();
@@ -130,6 +167,7 @@ describe('desktop-remote-api', () => {
     launchAppMock.mockReset();
     listDesktopWindowsMock.mockReset();
     moveMouseMock.mockReset();
+    moveMouseRelativeMock.mockReset();
     pressKeyMock.mockReset();
     pressHotkeyMock.mockReset();
     scrollMouseMock.mockReset();
@@ -196,6 +234,10 @@ describe('desktop-remote-api', () => {
         hasActiveSession: false,
         hasDesktopSession: false,
         apiVersion: 1,
+        pairing: {
+          autoApprove: false,
+          passwordConfigured: false,
+        },
       },
     });
   });
@@ -511,6 +553,25 @@ describe('desktop-remote-api', () => {
     expect(response.statusCode).toBe(200);
   });
 
+  it('moves mouse relatively through desktop control endpoint', async () => {
+    moveMouseRelativeMock.mockResolvedValue({ ok: true, message: 'Mouse moved relatively' });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/move-relative',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ deltaX: 18, deltaY: -9 }),
+    );
+
+    expect(moveMouseRelativeMock).toHaveBeenCalledWith(18, -9);
+    expect(response.statusCode).toBe(200);
+  });
+
   it('clicks mouse through desktop control endpoint', async () => {
     clickMouseMock.mockResolvedValue({ ok: true, message: 'Mouse left clicked' });
 
@@ -527,6 +588,28 @@ describe('desktop-remote-api', () => {
     );
 
     expect(clickMouseMock).toHaveBeenCalledWith(500, 400, 'left');
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('clicks at current cursor position when coordinates omitted', async () => {
+    clickMouseCurrentMock.mockResolvedValue({
+      ok: true,
+      message: 'Mouse left clicked at current position',
+    });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/input/click',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ button: 'left' }),
+    );
+
+    expect(clickMouseCurrentMock).toHaveBeenCalledWith('left');
     expect(response.statusCode).toBe(200);
   });
 
@@ -663,16 +746,22 @@ describe('desktop-remote-api', () => {
     expect(response.statusCode).toBe(200);
   });
 
-  it('enforces bearer auth when token configured', async () => {
+  it('keeps health public but protects desktop capabilities when token configured', async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     mockConfig.DESKTOP_REMOTE_API_TOKEN = 'secret-token';
     server = await startDesktopRemoteApi();
     port = (server.address() as AddressInfo).port;
 
-    const response = await makeRequest(port, {
+    const healthResponse = await makeRequest(port, {
       method: 'GET',
       path: '/api/desktop/health',
     });
+    expect(healthResponse.statusCode).toBe(200);
+
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/capabilities',
+    }, '', false);
 
     expect(response.statusCode).toBe(401);
     expect(JSON.parse(response.body)).toEqual({
@@ -681,4 +770,3 @@ describe('desktop-remote-api', () => {
     });
   });
 });
-
