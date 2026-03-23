@@ -395,7 +395,9 @@ body {
   grid-column: 1 / -1;
 }
 
-input {
+input,
+select,
+textarea {
   width: 100%;
   border: 1px solid rgba(37, 53, 74, 0.12);
   background: rgba(255, 255, 255, 0.62);
@@ -406,12 +408,20 @@ input {
   transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
-input:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: rgba(0, 103, 192, 0.5);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.86),
     0 0 0 3px rgba(0, 103, 192, 0.12);
   background: rgba(255, 255, 255, 0.86);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 110px;
+  line-height: 1.45;
 }
 
 button {
@@ -605,4 +615,164 @@ button:disabled {
   }
 }
 
+.agent-session-card {
+  display: grid;
+  gap: 14px;
+}
 
+.compact-pills {
+  margin-bottom: 2px;
+}
+
+.conversation-hint {
+  margin: 0;
+  padding: 0 2px;
+}
+
+.conversation-composer {
+  gap: 10px;
+}
+
+.conversation-panel {
+  min-height: 320px;
+  max-height: 520px;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(37, 53, 74, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(245, 248, 253, 0.96)),
+    rgba(249, 251, 255, 0.96);
+  overflow: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.conversation-panel.empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-family: inherit;
+}
+
+.conversation-message {
+  max-width: min(86%, 760px);
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(37, 53, 74, 0.08);
+  box-shadow: 0 8px 18px rgba(24, 39, 75, 0.05);
+}
+
+.conversation-message.role-user {
+  margin-left: auto;
+  background: linear-gradient(180deg, rgba(232, 243, 255, 0.96), rgba(221, 236, 255, 0.92));
+  border-color: rgba(0, 103, 192, 0.16);
+}
+
+.conversation-message.role-assistant {
+  margin-right: auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 253, 0.94));
+}
+
+.conversation-message.role-system {
+  max-width: 100%;
+  background: linear-gradient(180deg, rgba(251, 245, 228, 0.94), rgba(250, 239, 210, 0.9));
+  border-color: rgba(191, 106, 2, 0.18);
+}
+
+.conversation-message.state-running,
+.conversation-message.state-queued {
+  position: relative;
+}
+
+.conversation-message.state-running::after,
+.conversation-message.state-queued::after {
+  content: '';
+  position: absolute;
+  inset: auto 14px -1px 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(0, 103, 192, 0.12), rgba(0, 103, 192, 0.75), rgba(0, 103, 192, 0.12));
+}
+
+.conversation-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.conversation-role,
+.conversation-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(37, 53, 74, 0.07);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.conversation-time {
+  margin-left: auto;
+}
+
+.conversation-body {
+  line-height: 1.55;
+  color: var(--text);
+  white-space: normal;
+  word-break: break-word;
+}
+
+.conversation-message.is-collapsed .conversation-body {
+  max-height: 12.8em;
+  overflow: hidden;
+  position: relative;
+}
+
+.conversation-message.is-collapsed .conversation-body::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 48px;
+  background: linear-gradient(180deg, rgba(255,255,255,0), rgba(247,249,253,0.95));
+}
+
+.conversation-message.role-user.is-collapsed .conversation-body::after {
+  background: linear-gradient(180deg, rgba(221,236,255,0), rgba(221,236,255,0.96));
+}
+
+.conversation-message.role-system.is-collapsed .conversation-body::after {
+  background: linear-gradient(180deg, rgba(250,239,210,0), rgba(250,239,210,0.96));
+}
+
+.conversation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.conversation-action {
+  min-width: 72px;
+}
+
+@media (max-width: 1180px) {
+  .conversation-message {
+    max-width: 100%;
+  }
+
+  .conversation-time {
+    margin-left: 0;
+  }
+
+  .conversation-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

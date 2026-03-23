@@ -20,6 +20,12 @@ export interface DesktopScreenshot {
   height: number;
 }
 
+export interface DesktopCaptureOptions {
+  format?: 'png' | 'jpeg';
+  quality?: number;
+  scalePercent?: number;
+}
+
 export interface DesktopOperationResult {
   ok: boolean;
   message: string;
@@ -143,22 +149,51 @@ function textToBase64(value: string): string {
   return Buffer.from(value, 'utf-8').toString('base64');
 }
 
-export async function captureDesktopScreenshot(): Promise<DesktopScreenshot> {
+export async function captureDesktopScreenshot(
+  options: DesktopCaptureOptions = {},
+): Promise<DesktopScreenshot> {
+  const format = options.format === 'jpeg' ? 'jpeg' : 'png';
+  const quality = Math.max(35, Math.min(95, options.quality ?? 72));
+  const scalePercent = Math.max(25, Math.min(100, options.scalePercent ?? 100));
+  const useScaledBitmap = scalePercent !== 100;
+  const imageSaveBlock =
+    format === 'jpeg'
+      ? `
+$encoder = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.FormatDescription -eq 'JPEG' }
+$encoderParams = New-Object System.Drawing.Imaging.EncoderParameters 1
+$encoderParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality, ${quality}L)
+$bitmap.Save($stream, $encoder, $encoderParams)
+`
+      : `$bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)`;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
-$bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
-$graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-$graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bitmap.Size)
+$targetWidth = [Math]::Max(1, [int]($bounds.Width * ${scalePercent} / 100))
+$targetHeight = [Math]::Max(1, [int]($bounds.Height * ${scalePercent} / 100))
+$sourceBitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+$sourceGraphics = [System.Drawing.Graphics]::FromImage($sourceBitmap)
+$sourceGraphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $sourceBitmap.Size)
+if (${useScaledBitmap ? '$true' : '$false'}) {
+  $bitmap = New-Object System.Drawing.Bitmap $targetWidth, $targetHeight
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $graphics.DrawImage($sourceBitmap, 0, 0, $targetWidth, $targetHeight)
+} else {
+  $bitmap = $sourceBitmap
+  $graphics = $sourceGraphics
+}
 $stream = New-Object System.IO.MemoryStream
-$bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+${imageSaveBlock}
 $payload = @{
-  width = $bounds.Width
-  height = $bounds.Height
+  width = $bitmap.Width
+  height = $bitmap.Height
   base64 = [Convert]::ToBase64String($stream.ToArray())
 } | ConvertTo-Json -Compress
 $graphics.Dispose()
+if (${useScaledBitmap ? '$true' : '$false'}) {
+  $sourceGraphics.Dispose()
+  $sourceBitmap.Dispose()
+}
 $bitmap.Dispose()
 $stream.Dispose()
 Write-Output $payload
@@ -172,7 +207,7 @@ Write-Output $payload
   };
 
   return {
-    mimeType: 'image/png',
+    mimeType: format === 'jpeg' ? 'image/jpeg' : 'image/png',
     base64: parsed.base64,
     width: parsed.width,
     height: parsed.height,

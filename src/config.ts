@@ -69,6 +69,12 @@ export const DESKTOP_REMOTE_SESSION_TIMEOUT_MS = parseInt(
   process.env.DESKTOP_REMOTE_SESSION_TIMEOUT_MS || '120000',
   10,
 );
+export const DESKTOP_AGENT_PROVIDER =
+  process.env.DESKTOP_AGENT_PROVIDER || 'codex';
+export const DESKTOP_AGENT_EXECUTABLE =
+  process.env.DESKTOP_AGENT_EXECUTABLE || '';
+export const DESKTOP_AGENT_ARGS = process.env.DESKTOP_AGENT_ARGS || '';
+export const DESKTOP_AGENT_CWD = process.env.DESKTOP_AGENT_CWD || PROJECT_ROOT;
 export const IPC_POLL_INTERVAL = 1000;
 export const IDLE_TIMEOUT = parseInt(process.env.IDLE_TIMEOUT || '1800000', 10); // 30min default — how long to keep container alive after last result
 export const MAX_CONCURRENT_CONTAINERS = Math.max(

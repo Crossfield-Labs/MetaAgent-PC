@@ -1,9 +1,23 @@
-import { app, BrowserWindow, ipcMain, Menu } from 'electron';
-import { spawn } from 'node:child_process';
+import { app, desktopCapturer, ipcMain, session, BrowserWindow } from 'electron';
+import { execFile, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  defaultDesktopConfig,
+  displayEndpointFor,
+  getDesktopServerPath,
+  readDesktopConfig,
+  requestEndpointFor,
+  resolveNodeExecutable,
+  writeDesktopConfig,
+} from './main/desktop-config.mjs';
+import {
+  createGhostWindow,
+  createMainWindow,
+  createMediaBridgeWindow,
+} from './main/windows.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -13,108 +27,30 @@ const adminToken = randomUUID().replace(/-/g, '');
 let runtimeRoot = projectRoot;
 let mainWindow = null;
 let desktopProcess = null;
+let ghostWindow = null;
+let mediaBridgeWindow = null;
+let agentPollTimer = null;
+let mediaBridgeTimer = null;
 let lastStdout = '';
 let lastStderr = '';
 let lastExit = null;
-let currentConfig = defaultDesktopConfig();
-
-function defaultDesktopConfig() {
-  return {
-    host: '0.0.0.0',
-    port: '3210',
-    token: '',
-    pairPassword: '',
-    autoApprove: false,
-  };
-}
-
-function getEnvFilePath() {
-  return path.join(runtimeRoot, '.env');
-}
-
-function getDesktopServerPath() {
-  return path.join(app.getAppPath(), 'dist', 'desktop', 'server.js');
-}
-
-function displayEndpointFor(config = currentConfig) {
-  return `http://${config.host || '0.0.0.0'}:${config.port || '3210'}`;
-}
-
-function requestEndpointFor(config = currentConfig) {
-  const host = !config.host || config.host === '0.0.0.0' ? '127.0.0.1' : config.host;
-  return `http://${host}:${config.port || '3210'}`;
-}
-
-function readDesktopConfig() {
-  const defaults = defaultDesktopConfig();
-  const envFilePath = getEnvFilePath();
-
-  if (!fs.existsSync(envFilePath)) {
-    return defaults;
-  }
-
-  const lines = fs.readFileSync(envFilePath, 'utf8').split(/\r?\n/);
-  const env = {};
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const splitIndex = trimmed.indexOf('=');
-    if (splitIndex === -1) continue;
-    const key = trimmed.slice(0, splitIndex).trim();
-    const value = trimmed.slice(splitIndex + 1).trim();
-    env[key] = value;
-  }
-
-  return {
-    host: env.DESKTOP_REMOTE_API_HOST || defaults.host,
-    port: env.DESKTOP_REMOTE_API_PORT || defaults.port,
-    token: env.DESKTOP_REMOTE_API_TOKEN || defaults.token,
-    pairPassword: env.DESKTOP_REMOTE_PAIR_PASSWORD || defaults.pairPassword,
-    autoApprove: (env.DESKTOP_REMOTE_AUTO_APPROVE || 'false') === 'true',
-  };
-}
-
-function writeDesktopConfig(config) {
-  fs.mkdirSync(runtimeRoot, { recursive: true });
-  const envFilePath = getEnvFilePath();
-  const existing = fs.existsSync(envFilePath)
-    ? fs.readFileSync(envFilePath, 'utf8').split(/\r?\n/)
-    : [];
-
-  const values = {
-    DESKTOP_REMOTE_API_HOST: config.host,
-    DESKTOP_REMOTE_API_PORT: config.port,
-    DESKTOP_REMOTE_API_TOKEN: config.token,
-    DESKTOP_REMOTE_PAIR_PASSWORD: config.pairPassword,
-    DESKTOP_REMOTE_AUTO_APPROVE: String(config.autoApprove),
-  };
-
-  const seen = new Set();
-  const rewritten = existing.map((line) => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#') || !trimmed.includes('=')) {
-      return line;
-    }
-    const [key] = trimmed.split('=', 1);
-    if (Object.hasOwn(values, key)) {
-      seen.add(key);
-      return `${key}=${values[key]}`;
-    }
-    return line;
-  });
-
-  for (const [key, value] of Object.entries(values)) {
-    if (!seen.has(key)) {
-      rewritten.push(`${key}=${value}`);
-    }
-  }
-
-  fs.writeFileSync(envFilePath, rewritten.filter(Boolean).join('\n') + '\n', 'utf8');
-}
+let currentConfig = defaultDesktopConfig(projectRoot);
+let isShuttingDown = false;
 
 function emit(channel, payload) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send(channel, payload);
+}
+
+function statePayload() {
+  return {
+    running: Boolean(desktopProcess),
+    endpoint: displayEndpointFor(currentConfig),
+    config: currentConfig,
+    lastExit,
+    runtimeRoot,
+    packaged: app.isPackaged,
+  };
 }
 
 function logLine(kind, line) {
@@ -124,53 +60,212 @@ function logLine(kind, line) {
   } else {
     lastStdout = line;
   }
-  emit('desktop-log', {
-    kind,
-    line,
-    at: new Date().toISOString(),
-  });
+  emit('desktop-log', { kind, line, at: new Date().toISOString() });
 }
 
 async function ensureDesktopBuild() {
-  const desktopServerPath = getDesktopServerPath();
-  if (fs.existsSync(desktopServerPath)) {
-    return;
-  }
-
+  const desktopServerPath = getDesktopServerPath(app.getAppPath());
+  if (fs.existsSync(desktopServerPath)) return;
   if (app.isPackaged) {
     throw new Error(`Packaged desktop server entrypoint is missing: ${desktopServerPath}`);
   }
+  throw new Error(`Desktop server entrypoint is missing: ${desktopServerPath}. Please run npm run build first.`);
+}
 
-  await new Promise((resolve, reject) => {
-    const builder = spawn('npm.cmd', ['run', 'build'], {
-      cwd: projectRoot,
-      windowsHide: true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+async function isDesktopServiceReachable() {
+  try {
+    const response = await fetch(`${requestEndpointFor(currentConfig)}/api/desktop/health`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+function destroyAuxWindows() {
+  if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.destroy();
+  if (mediaBridgeWindow && !mediaBridgeWindow.isDestroyed()) mediaBridgeWindow.destroy();
+  ghostWindow = null;
+  mediaBridgeWindow = null;
+}
+
+async function shutdownApplication(exitCode = 0) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  try {
+    await stopDesktopServer();
+  } finally {
+    destroyAuxWindows();
+    app.exit(exitCode);
+  }
+}
+
+async function waitForDesktopServerReady(timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (desktopProcess && desktopProcess.exitCode != null) {
+      throw new Error(`Desktop service exited before ready with code ${desktopProcess.exitCode}`);
+    }
+
+    try {
+      const response = await fetch(`${requestEndpointFor(currentConfig)}/api/desktop/health`);
+      if (response.ok) return;
+    } catch {
+      // service is still starting
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  const failureDetail = lastExit?.detail || lastStderr || lastStdout;
+  if (failureDetail) {
+    throw new Error(`Desktop service did not become ready in time: ${failureDetail}`);
+  }
+  throw new Error('Desktop service did not become ready in time');
+}
+
+async function requestDesktopApi({ method, path: requestPath, body, token }) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Desktop-Admin-Token': adminToken,
+  };
+  const authToken = (token ?? currentConfig.token).trim();
+  if (authToken) headers.Authorization = `Bearer ${authToken}`;
+
+  try {
+    const response = await fetch(`${requestEndpointFor(currentConfig)}${requestPath}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
     });
 
-    builder.stdout.on('data', (chunk) => {
-      const text = chunk.toString().trim();
-      if (text) logLine('stdout', `[build] ${text}`);
+    const text = await response.text();
+    let parsed;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = text;
+    }
+
+    return { ok: response.ok, status: response.status, data: parsed, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: error instanceof Error ? error.message : 'desktop service unavailable',
+    };
+  }
+}
+
+async function requestAdminApi({ method, path: requestPath, body }) {
+  try {
+    const response = await fetch(`${requestEndpointFor(currentConfig)}${requestPath}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Desktop-Admin-Token': adminToken,
+      },
+      body: body ? JSON.stringify(body) : undefined,
     });
-    builder.stderr.on('data', (chunk) => {
-      const text = chunk.toString().trim();
-      if (text) logLine('stderr', `[build] ${text}`);
+
+    const text = await response.text();
+    let parsed;
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      parsed = text;
+    }
+
+    return { ok: response.ok, status: response.status, data: parsed, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: error instanceof Error ? error.message : 'desktop admin service unavailable',
+    };
+  }
+}
+
+function emitGhostState(payload) {
+  if (!ghostWindow || ghostWindow.isDestroyed()) return;
+  ghostWindow.webContents.send('ghost-state', payload);
+}
+
+function emitMediaBridgeState(payload) {
+  if (!mediaBridgeWindow || mediaBridgeWindow.isDestroyed()) return;
+  mediaBridgeWindow.webContents.send('video-session', payload);
+}
+
+async function syncGhostWindow() {
+  if (!desktopProcess) {
+    if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.hide();
+    return;
+  }
+
+  try {
+    const response = await requestDesktopApi({ method: 'GET', path: '/api/desktop/agent/state', token: currentConfig.token });
+    const state = response.data?.data?.state;
+    if (!response.ok || !state || state.status !== 'running') {
+      if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.hide();
+      return;
+    }
+
+    emitGhostState(state);
+    if (ghostWindow && !ghostWindow.isVisible()) ghostWindow.showInactive();
+  } catch {
+    if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.hide();
+  }
+}
+
+async function syncMediaBridgeWindow() {
+  if (!mediaBridgeWindow || mediaBridgeWindow.isDestroyed()) return;
+  try {
+    const response = await requestDesktopApi({ method: 'GET', path: '/api/desktop/video/session', token: currentConfig.token });
+    emitMediaBridgeState({
+      endpoint: requestEndpointFor(currentConfig),
+      token: currentConfig.token,
+      payload: response.data?.data ?? null,
     });
-    builder.on('error', reject);
-    builder.on('exit', (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`npm run build exited with code ${code ?? 'unknown'}`));
-      }
+  } catch (error) {
+    emitMediaBridgeState({
+      endpoint: requestEndpointFor(currentConfig),
+      token: currentConfig.token,
+      payload: null,
+      error: error instanceof Error ? error.message : 'video session sync failed',
     });
-  });
+  }
+}
+
+function stopAgentPolling() {
+  if (agentPollTimer) {
+    clearInterval(agentPollTimer);
+    agentPollTimer = null;
+  }
+}
+
+function stopMediaBridgePolling() {
+  if (mediaBridgeTimer) {
+    clearInterval(mediaBridgeTimer);
+    mediaBridgeTimer = null;
+  }
+}
+
+function startAgentPolling() {
+  stopAgentPolling();
+  agentPollTimer = setInterval(() => void syncGhostWindow(), 1200);
+  void syncGhostWindow();
+}
+
+function startMediaBridgePolling() {
+  stopMediaBridgePolling();
+  mediaBridgeTimer = setInterval(() => void syncMediaBridgeWindow(), 1200);
+  void syncMediaBridgeWindow();
 }
 
 async function startDesktopServer(config) {
-  if (desktopProcess && !desktopProcess.killed) {
-    return statePayload();
-  }
+  if (desktopProcess && !desktopProcess.killed) return statePayload();
 
   currentConfig = {
     host: (config.host || '0.0.0.0').trim(),
@@ -178,8 +273,12 @@ async function startDesktopServer(config) {
     token: (config.token || '').trim(),
     pairPassword: (config.pairPassword || '').trim(),
     autoApprove: Boolean(config.autoApprove),
+    agentProvider: (config.agentProvider || 'codex').trim() || 'codex',
+    agentExecutable: (config.agentExecutable || '').trim(),
+    agentArgs: (config.agentArgs || '').trim(),
+    agentCwd: (config.agentCwd || projectRoot).trim() || projectRoot,
   };
-  writeDesktopConfig(currentConfig);
+  writeDesktopConfig(runtimeRoot, currentConfig);
 
   lastStdout = '';
   lastStderr = '';
@@ -187,33 +286,37 @@ async function startDesktopServer(config) {
 
   await ensureDesktopBuild();
 
-  const desktopServerPath = getDesktopServerPath();
-  desktopProcess = spawn(process.execPath, [desktopServerPath], {
+  if (await isDesktopServiceReachable()) {
+    throw new Error(`Desktop service is already listening on ${requestEndpointFor(currentConfig)}. Close the existing MetaAgent-PC desktop service or free the port before starting a new one.`);
+  }
+
+  const desktopServerPath = getDesktopServerPath(app.getAppPath());
+  const nodeExecutable = resolveNodeExecutable();
+  desktopProcess = spawn(nodeExecutable, [desktopServerPath], {
     cwd: runtimeRoot,
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
-      ELECTRON_RUN_AS_NODE: '1',
       DESKTOP_REMOTE_API_HOST: currentConfig.host,
       DESKTOP_REMOTE_API_PORT: currentConfig.port,
       DESKTOP_REMOTE_API_TOKEN: currentConfig.token,
       DESKTOP_REMOTE_PAIR_PASSWORD: currentConfig.pairPassword,
       DESKTOP_REMOTE_AUTO_APPROVE: String(currentConfig.autoApprove),
       DESKTOP_REMOTE_ADMIN_TOKEN: adminToken,
+      DESKTOP_AGENT_PROVIDER: currentConfig.agentProvider,
+      DESKTOP_AGENT_EXECUTABLE: currentConfig.agentExecutable,
+      DESKTOP_AGENT_ARGS: currentConfig.agentArgs,
+      DESKTOP_AGENT_CWD: currentConfig.agentCwd,
     },
   });
 
   desktopProcess.stdout.on('data', (chunk) => {
-    const lines = chunk.toString().split(/\r?\n/).filter(Boolean);
-    lines.forEach((line) => logLine('stdout', line));
+    chunk.toString().split(/\r?\n/).filter(Boolean).forEach((line) => logLine('stdout', line));
   });
-
   desktopProcess.stderr.on('data', (chunk) => {
-    const lines = chunk.toString().split(/\r?\n/).filter(Boolean);
-    lines.forEach((line) => logLine('stderr', line));
+    chunk.toString().split(/\r?\n/).filter(Boolean).forEach((line) => logLine('stderr', line));
   });
-
   desktopProcess.on('exit', (code, signal) => {
     lastExit = {
       code,
@@ -222,131 +325,48 @@ async function startDesktopServer(config) {
       at: new Date().toISOString(),
     };
     desktopProcess = null;
+    stopAgentPolling();
+    stopMediaBridgePolling();
+    if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.hide();
     emit('desktop-state', statePayload());
   });
-
   desktopProcess.on('error', (error) => {
-    lastExit = {
-      code: -1,
-      signal: null,
-      detail: error.message,
-      at: new Date().toISOString(),
-    };
+    lastExit = { code: -1, signal: null, detail: error.message, at: new Date().toISOString() };
+    stopAgentPolling();
+    stopMediaBridgePolling();
     emit('desktop-state', statePayload());
   });
 
+  await waitForDesktopServerReady();
+  startAgentPolling();
+  startMediaBridgePolling();
   emit('desktop-state', statePayload());
   return statePayload();
 }
 
 async function stopDesktopServer() {
-  if (!desktopProcess) {
-    return statePayload();
-  }
+  if (!desktopProcess) return statePayload();
 
   await new Promise((resolve) => {
     const proc = desktopProcess;
     proc.once('exit', () => resolve());
     proc.kill();
     setTimeout(() => {
-      if (desktopProcess) {
-        desktopProcess.kill('SIGKILL');
-      }
+      if (desktopProcess) desktopProcess.kill('SIGKILL');
       resolve();
     }, 2500);
   });
 
   desktopProcess = null;
+  stopAgentPolling();
+  stopMediaBridgePolling();
+  if (ghostWindow && !ghostWindow.isDestroyed()) ghostWindow.hide();
   emit('desktop-state', statePayload());
   return statePayload();
 }
 
-function statePayload() {
-  return {
-    running: Boolean(desktopProcess),
-    endpoint: displayEndpointFor(),
-    config: currentConfig,
-    lastExit,
-    runtimeRoot,
-    packaged: app.isPackaged,
-  };
-}
-
-async function requestDesktopApi({ method, path: requestPath, body, token }) {
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-
-  const authToken = (token ?? currentConfig.token).trim();
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`;
-  }
-
-  const response = await fetch(`${requestEndpointFor()}${requestPath}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const text = await response.text();
-  let parsed;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = text;
-  }
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    data: parsed,
-  };
-}
-
-async function requestAdminApi({ method, path: requestPath, body }) {
-  const response = await fetch(`${requestEndpointFor()}${requestPath}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Desktop-Admin-Token': adminToken,
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const text = await response.text();
-  return {
-    ok: response.ok,
-    status: response.status,
-    data: text ? JSON.parse(text) : null,
-  };
-}
-
-function createWindow() {
-  Menu.setApplicationMenu(null);
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 860,
-    minWidth: 1080,
-    minHeight: 760,
-    backgroundColor: '#f3f6fb',
-    title: 'MetaAgent',
-    autoHideMenuBar: true,
-    icon: path.join(__dirname, 'renderer', 'assets', 'logo.png'),
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-  });
-
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-}
-
 ipcMain.handle('desktop:get-state', async () => statePayload());
-ipcMain.handle('desktop:get-defaults', async () => ({
-  config: currentConfig,
-  endpoint: displayEndpointFor(),
-}));
+ipcMain.handle('desktop:get-defaults', async () => ({ config: currentConfig, endpoint: displayEndpointFor(currentConfig) }));
 ipcMain.handle('desktop:start', async (_event, config) => startDesktopServer(config));
 ipcMain.handle('desktop:stop', async () => stopDesktopServer());
 ipcMain.handle('desktop:api', async (_event, payload) => requestDesktopApi(payload));
@@ -357,23 +377,43 @@ ipcMain.handle('desktop:open-project', async () => {
 ipcMain.handle('desktop:admin-api', async (_event, payload) => requestAdminApi(payload));
 
 app.whenReady().then(() => {
-  runtimeRoot = app.isPackaged
-    ? path.join(app.getPath('userData'), 'desktop-runtime')
-    : projectRoot;
+  session.defaultSession.setDisplayMediaRequestHandler(
+    async (_request, callback) => {
+      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
+      callback({ video: sources[0], audio: undefined });
+    },
+    { useSystemPicker: false },
+  );
+
+  runtimeRoot = app.isPackaged ? path.join(app.getPath('userData'), 'desktop-runtime') : projectRoot;
   fs.mkdirSync(runtimeRoot, { recursive: true });
-  currentConfig = readDesktopConfig();
-  createWindow();
+  currentConfig = readDesktopConfig(runtimeRoot, projectRoot);
+
+  mainWindow = createMainWindow(__dirname);
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (!isShuttingDown) {
+      void shutdownApplication(0);
+    }
+  });
+
+  ghostWindow = createGhostWindow(__dirname);
+  mediaBridgeWindow = createMediaBridgeWindow(__dirname);
+});
+
+app.on('before-quit', () => {
+  isShuttingDown = true;
 });
 
 app.on('window-all-closed', async () => {
-  await stopDesktopServer();
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  if (isShuttingDown) return;
+  await shutdownApplication(0);
 });
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    mainWindow = createMainWindow(__dirname);
   }
 });
+
+

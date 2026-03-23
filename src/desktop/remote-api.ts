@@ -1,6 +1,7 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http';
 
 import {
+  DesktopCaptureOptions,
   captureDesktopScreenshot,
   clickMouse,
   clickMouseCurrent,
@@ -18,6 +19,18 @@ import {
   setClipboardText,
   sendText,
 } from './control.js';
+import {
+  listDesktopAgentLogs,
+  listDesktopAgentMessages,
+  getDesktopAgentSession,
+  getDesktopAgentSettings,
+  getDesktopAgentState,
+  resetDesktopAgentSession,
+  runDesktopAgent,
+  sendDesktopAgentMessage,
+  stopDesktopAgent,
+  updateDesktopAgentSettings,
+} from './agent-manager.js';
 import {
   DESKTOP_REMOTE_API_HOST,
   DESKTOP_REMOTE_API_PORT,
@@ -48,6 +61,14 @@ import {
   subscribeDesktopEvents,
   validateDesktopSessionToken,
 } from './session-manager.js';
+import {
+  addDesktopVideoCandidate,
+  closeDesktopVideoSession,
+  getDesktopVideoSession,
+  openDesktopVideoSession,
+  submitDesktopVideoAnswer,
+  submitDesktopVideoOffer,
+} from './video-manager.js';
 import { logger } from '../logger.js';
 
 interface StartRequest {
@@ -136,6 +157,44 @@ interface PairingSettingsRequest {
   password?: string;
 }
 
+interface AgentRunRequest {
+  prompt?: string;
+  provider?: 'codex' | 'claude';
+  cwd?: string;
+}
+
+interface AgentSettingsRequest {
+  provider?: 'codex' | 'claude';
+  executable?: string;
+  args?: string;
+  cwd?: string;
+}
+
+interface AgentMessageRequest {
+  message?: string;
+  provider?: 'codex' | 'claude';
+  cwd?: string;
+}
+
+interface OpenVideoSessionRequest {
+  viewerName?: string;
+  codec?: 'h264' | 'vp9' | 'av1';
+  preferredWidth?: number;
+  preferredHeight?: number;
+  preferredFps?: number;
+}
+
+interface VideoOfferRequest {
+  sessionId?: string;
+  sdp?: string;
+}
+
+interface VideoCandidateRequest {
+  sessionId?: string;
+  candidate?: string;
+  source?: 'viewer' | 'host';
+}
+
 function sendJson(
   res: ServerResponse,
   statusCode: number,
@@ -182,6 +241,9 @@ function isAdminAuthorized(req: IncomingMessage): boolean {
 }
 
 function isApiAuthorized(req: IncomingMessage): boolean {
+  if (isAdminAuthorized(req)) {
+    return true;
+  }
   const token = bearerToken(req);
   if (DESKTOP_REMOTE_API_TOKEN && token === DESKTOP_REMOTE_API_TOKEN) {
     return true;
@@ -254,6 +316,22 @@ function sendSseEvent(
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+function captureOptionsFromQuery(url: URL): DesktopCaptureOptions {
+  const format =
+    url.searchParams.get('format')?.toLowerCase() === 'jpeg' ? 'jpeg' : 'png';
+  const quality = Number.parseInt(url.searchParams.get('quality') || '72', 10);
+  const scalePercent = Number.parseInt(
+    url.searchParams.get('scalePercent') || '100',
+    10,
+  );
+
+  return {
+    format,
+    quality: Number.isFinite(quality) ? quality : 72,
+    scalePercent: Number.isFinite(scalePercent) ? scalePercent : 100,
+  };
+}
+
 export function startDesktopRemoteApi(): Promise<Server> {
   return new Promise((resolve, reject) => {
     const server = createServer(async (req, res) => {
@@ -278,6 +356,15 @@ export function startDesktopRemoteApi(): Promise<Server> {
               hasDesktopSession: getActiveDesktopSession() !== null,
               apiVersion: 1,
               pairing: getPairingSettings(),
+              agent: {
+                settings: getDesktopAgentSettings(),
+                state: getDesktopAgentState(),
+              },
+              video: {
+                session: getDesktopVideoSession(),
+                transport: 'webrtc',
+                capturePipeline: 'desktop-duplication-planned',
+              },
             },
           });
           return;
@@ -419,6 +506,22 @@ export function startDesktopRemoteApi(): Promise<Server> {
             return;
           }
 
+          if (
+            method === 'POST' &&
+            url.pathname === '/api/desktop/pair/admin/agent-settings'
+          ) {
+            const body =
+              (await readJsonBody<AgentSettingsRequest>(req)) ||
+              ({} as AgentSettingsRequest);
+            sendJson(res, 200, {
+              ok: true,
+              data: {
+                settings: updateDesktopAgentSettings(body),
+              },
+            });
+            return;
+          }
+
           methodNotAllowed(res);
           return;
         }
@@ -437,6 +540,296 @@ export function startDesktopRemoteApi(): Promise<Server> {
           sendJson(res, 200, {
             ok: true,
             data: getDesktopCapabilities(),
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/agent/state') {
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              settings: getDesktopAgentSettings(),
+              state: getDesktopAgentState(),
+              session: getDesktopAgentSession(),
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/agent/session') {
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              settings: getDesktopAgentSettings(),
+              state: getDesktopAgentState(),
+              session: getDesktopAgentSession(),
+              messages: listDesktopAgentMessages(
+                Number.parseInt(url.searchParams.get('limit') || '80', 10),
+              ),
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/video/session') {
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session: getDesktopVideoSession(),
+              transport: 'webrtc',
+              capturePipeline: 'desktop-duplication-planned',
+            },
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/video/session/open'
+        ) {
+          const body =
+            (await readJsonBody<OpenVideoSessionRequest>(req)) ||
+            ({} as OpenVideoSessionRequest);
+          const session = openDesktopVideoSession(body);
+          publishDesktopEvent('desktop.video.session.open', {
+            sessionId: session.id,
+            codec: session.codec,
+            preferredWidth: session.preferredWidth,
+            preferredHeight: session.preferredHeight,
+            preferredFps: session.preferredFps,
+          });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session,
+            },
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/video/session/close'
+        ) {
+          const result = closeDesktopVideoSession();
+          if (!result.closed) {
+            sendJson(res, 404, {
+              ok: false,
+              error: 'No active desktop video session',
+            });
+            return;
+          }
+          publishDesktopEvent('desktop.video.session.close', {});
+          sendJson(res, 200, {
+            ok: true,
+            data: result,
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/video/session/offer'
+        ) {
+          const body =
+            (await readJsonBody<VideoOfferRequest>(req)) ||
+            ({} as VideoOfferRequest);
+          if (!body.sessionId || !body.sdp) {
+            sendJson(res, 400, { ok: false, error: 'Missing sessionId/sdp' });
+            return;
+          }
+          const session = submitDesktopVideoOffer({
+            sessionId: body.sessionId,
+            sdp: body.sdp,
+          });
+          if (!session) {
+            sendJson(res, 404, {
+              ok: false,
+              error: 'Desktop video session not found',
+            });
+            return;
+          }
+          publishDesktopEvent('desktop.video.offer', { sessionId: session.id });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session,
+            },
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/video/session/answer'
+        ) {
+          const body =
+            (await readJsonBody<VideoOfferRequest>(req)) ||
+            ({} as VideoOfferRequest);
+          if (!body.sessionId || !body.sdp) {
+            sendJson(res, 400, { ok: false, error: 'Missing sessionId/sdp' });
+            return;
+          }
+          const session = submitDesktopVideoAnswer({
+            sessionId: body.sessionId,
+            sdp: body.sdp,
+          });
+          if (!session) {
+            sendJson(res, 404, {
+              ok: false,
+              error: 'Desktop video session not found',
+            });
+            return;
+          }
+          publishDesktopEvent('desktop.video.answer', {
+            sessionId: session.id,
+          });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session,
+            },
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/video/session/candidate'
+        ) {
+          const body =
+            (await readJsonBody<VideoCandidateRequest>(req)) ||
+            ({} as VideoCandidateRequest);
+          if (!body.sessionId || !body.candidate) {
+            sendJson(res, 400, {
+              ok: false,
+              error: 'Missing sessionId/candidate',
+            });
+            return;
+          }
+          const session = addDesktopVideoCandidate({
+            sessionId: body.sessionId,
+            candidate: body.candidate,
+            source: body.source,
+          });
+          if (!session) {
+            sendJson(res, 404, {
+              ok: false,
+              error: 'Desktop video session not found',
+            });
+            return;
+          }
+          publishDesktopEvent('desktop.video.candidate', {
+            sessionId: session.id,
+            candidateCount: session.candidateCount,
+          });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              session,
+            },
+          });
+          return;
+        }
+
+        if (method === 'GET' && url.pathname === '/api/desktop/agent/logs') {
+          const limit = Number.parseInt(
+            url.searchParams.get('limit') || '120',
+            10,
+          );
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              logs: listDesktopAgentLogs(limit),
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/agent/run') {
+          const body =
+            (await readJsonBody<AgentRunRequest>(req)) ||
+            ({} as AgentRunRequest);
+          const result = runDesktopAgent({
+            prompt: body.prompt || '',
+            provider: body.provider,
+            cwd: body.cwd,
+          });
+          if (!result.ok) {
+            sendJson(res, 400, { ok: false, error: result.error });
+            return;
+          }
+          publishDesktopEvent('desktop.agent.run', {
+            provider: result.state.provider,
+            cwd: result.state.cwd,
+          });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              state: result.state,
+              session: getDesktopAgentSession(),
+            },
+          });
+          return;
+        }
+
+        if (
+          method === 'POST' &&
+          url.pathname === '/api/desktop/agent/message'
+        ) {
+          const body =
+            (await readJsonBody<AgentMessageRequest>(req)) ||
+            ({} as AgentMessageRequest);
+          const result = sendDesktopAgentMessage({
+            message: body.message || '',
+            provider: body.provider,
+            cwd: body.cwd,
+          });
+          if (!result.ok) {
+            sendJson(res, 400, { ok: false, error: result.error });
+            return;
+          }
+          publishDesktopEvent('desktop.agent.message', {
+            provider: result.state.provider,
+            cwd: result.state.cwd,
+            sessionId: result.session?.id ?? null,
+          });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              state: result.state,
+              session: result.session,
+              message: result.message,
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/agent/reset') {
+          const result = resetDesktopAgentSession();
+          publishDesktopEvent('desktop.agent.reset', { ok: result.ok });
+          sendJson(res, 200, {
+            ok: true,
+            data: {
+              result,
+              state: getDesktopAgentState(),
+              session: getDesktopAgentSession(),
+              messages: listDesktopAgentMessages(80),
+            },
+          });
+          return;
+        }
+
+        if (method === 'POST' && url.pathname === '/api/desktop/agent/stop') {
+          const result = stopDesktopAgent();
+          publishDesktopEvent('desktop.agent.stop', { ok: result.ok });
+          if (!result.ok) {
+            sendJson(res, 409, { ok: false, error: result.message });
+            return;
+          }
+          sendJson(res, 200, {
+            ok: true,
+            data: result,
           });
           return;
         }
@@ -660,13 +1053,28 @@ export function startDesktopRemoteApi(): Promise<Server> {
 
           let closed = false;
           let busy = false;
+          const captureOptions = captureOptionsFromQuery(url);
+          if (!url.searchParams.has('format')) {
+            captureOptions.format = 'jpeg';
+          }
+          if (!url.searchParams.has('quality')) {
+            captureOptions.quality = 68;
+          }
+          if (!url.searchParams.has('scalePercent')) {
+            captureOptions.scalePercent = 60;
+          }
+          const fps = Number.parseInt(url.searchParams.get('fps') || '8', 10);
+          const intervalMs = Math.max(
+            80,
+            Math.round(1000 / (Number.isFinite(fps) ? fps : 8)),
+          );
           const sendFrame = async () => {
             if (closed || busy) {
               return;
             }
             busy = true;
             try {
-              const screenshot = await captureDesktopScreenshot();
+              const screenshot = await captureDesktopScreenshot(captureOptions);
               const bytes = Buffer.from(screenshot.base64, 'base64');
               res.write(`--frame\r\n`);
               res.write(`Content-Type: ${screenshot.mimeType}\r\n`);
@@ -685,7 +1093,7 @@ export function startDesktopRemoteApi(): Promise<Server> {
           void sendFrame();
           const timer = setInterval(() => {
             void sendFrame();
-          }, 160);
+          }, intervalMs);
 
           req.on('close', () => {
             closed = true;
@@ -696,7 +1104,9 @@ export function startDesktopRemoteApi(): Promise<Server> {
         }
 
         if (method === 'GET' && url.pathname === '/api/desktop/screenshot') {
-          const screenshot = await captureDesktopScreenshot();
+          const screenshot = await captureDesktopScreenshot(
+            captureOptionsFromQuery(url),
+          );
           publishDesktopEvent('desktop.screenshot', {
             width: screenshot.width,
             height: screenshot.height,

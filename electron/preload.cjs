@@ -18,4 +18,14 @@ contextBridge.exposeInMainWorld('metaAgentDesktop', {
     ipcRenderer.on('desktop-log', handler);
     return () => ipcRenderer.removeListener('desktop-log', handler);
   },
+  onGhostState: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on('ghost-state', handler);
+    return () => ipcRenderer.removeListener('ghost-state', handler);
+  },
+  onVideoSession: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on('video-session', handler);
+    return () => ipcRenderer.removeListener('video-session', handler);
+  },
 });

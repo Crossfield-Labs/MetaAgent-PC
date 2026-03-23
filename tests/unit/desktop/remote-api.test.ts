@@ -14,6 +14,10 @@ const { mockConfig } = vi.hoisted(() => ({
     DESKTOP_REMOTE_AUTO_APPROVE: false,
     DESKTOP_REMOTE_ADMIN_TOKEN: '',
     DESKTOP_REMOTE_SESSION_TIMEOUT_MS: 120000,
+    DESKTOP_AGENT_PROVIDER: 'codex',
+    DESKTOP_AGENT_EXECUTABLE: 'codex',
+    DESKTOP_AGENT_ARGS: '',
+    DESKTOP_AGENT_CWD: 'D:/works/nanoclaw',
   },
 }));
 
@@ -25,6 +29,10 @@ const baseMockConfig = {
   DESKTOP_REMOTE_AUTO_APPROVE: false,
   DESKTOP_REMOTE_ADMIN_TOKEN: '',
   DESKTOP_REMOTE_SESSION_TIMEOUT_MS: 120000,
+  DESKTOP_AGENT_PROVIDER: 'codex',
+  DESKTOP_AGENT_EXECUTABLE: 'codex',
+  DESKTOP_AGENT_ARGS: '',
+  DESKTOP_AGENT_CWD: 'D:/works/nanoclaw',
 };
 
 const captureDesktopScreenshotMock = vi.fn();
@@ -42,10 +50,26 @@ const pressHotkeyMock = vi.fn();
 const scrollMouseMock = vi.fn();
 const clickMouseCurrentMock = vi.fn();
 const getActiveSessionMock = vi.fn();
+const getDesktopAgentSettingsMock = vi.fn();
+const getDesktopAgentStateMock = vi.fn();
+const getDesktopAgentSessionMock = vi.fn();
+const listDesktopAgentMessagesMock = vi.fn();
+const listDesktopAgentLogsMock = vi.fn();
+const runDesktopAgentMock = vi.fn();
+const sendDesktopAgentMessageMock = vi.fn();
+const resetDesktopAgentSessionMock = vi.fn();
 const setClipboardTextMock = vi.fn();
 const sendTextMock = vi.fn();
 const startRemoteControlMock = vi.fn();
 const stopRemoteControlMock = vi.fn();
+const stopDesktopAgentMock = vi.fn();
+const updateDesktopAgentSettingsMock = vi.fn();
+const addDesktopVideoCandidateMock = vi.fn();
+const closeDesktopVideoSessionMock = vi.fn();
+const getDesktopVideoSessionMock = vi.fn();
+const openDesktopVideoSessionMock = vi.fn();
+const submitDesktopVideoAnswerMock = vi.fn();
+const submitDesktopVideoOfferMock = vi.fn();
 
 vi.mock('../../../src/config.js', () => ({
   get DESKTOP_REMOTE_API_HOST() {
@@ -68,6 +92,18 @@ vi.mock('../../../src/config.js', () => ({
   },
   get DESKTOP_REMOTE_SESSION_TIMEOUT_MS() {
     return mockConfig.DESKTOP_REMOTE_SESSION_TIMEOUT_MS;
+  },
+  get DESKTOP_AGENT_PROVIDER() {
+    return mockConfig.DESKTOP_AGENT_PROVIDER;
+  },
+  get DESKTOP_AGENT_EXECUTABLE() {
+    return mockConfig.DESKTOP_AGENT_EXECUTABLE;
+  },
+  get DESKTOP_AGENT_ARGS() {
+    return mockConfig.DESKTOP_AGENT_ARGS;
+  },
+  get DESKTOP_AGENT_CWD() {
+    return mockConfig.DESKTOP_AGENT_CWD;
   },
 }));
 
@@ -100,6 +136,40 @@ vi.mock('../../../src/desktop/control.js', () => ({
 
 vi.mock('../../../src/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
+}));
+
+vi.mock('../../../src/desktop/agent-manager.js', () => ({
+  getDesktopAgentSettings: (...args: unknown[]) =>
+    getDesktopAgentSettingsMock(...args),
+  getDesktopAgentState: (...args: unknown[]) =>
+    getDesktopAgentStateMock(...args),
+  getDesktopAgentSession: (...args: unknown[]) =>
+    getDesktopAgentSessionMock(...args),
+  listDesktopAgentMessages: (...args: unknown[]) =>
+    listDesktopAgentMessagesMock(...args),
+  listDesktopAgentLogs: (...args: unknown[]) =>
+    listDesktopAgentLogsMock(...args),
+  runDesktopAgent: (...args: unknown[]) => runDesktopAgentMock(...args),
+  sendDesktopAgentMessage: (...args: unknown[]) => sendDesktopAgentMessageMock(...args),
+  resetDesktopAgentSession: (...args: unknown[]) => resetDesktopAgentSessionMock(...args),
+  stopDesktopAgent: (...args: unknown[]) => stopDesktopAgentMock(...args),
+  updateDesktopAgentSettings: (...args: unknown[]) =>
+    updateDesktopAgentSettingsMock(...args),
+}));
+
+vi.mock('../../../src/desktop/video-manager.js', () => ({
+  addDesktopVideoCandidate: (...args: unknown[]) =>
+    addDesktopVideoCandidateMock(...args),
+  closeDesktopVideoSession: (...args: unknown[]) =>
+    closeDesktopVideoSessionMock(...args),
+  getDesktopVideoSession: (...args: unknown[]) =>
+    getDesktopVideoSessionMock(...args),
+  openDesktopVideoSession: (...args: unknown[]) =>
+    openDesktopVideoSessionMock(...args),
+  submitDesktopVideoAnswer: (...args: unknown[]) =>
+    submitDesktopVideoAnswerMock(...args),
+  submitDesktopVideoOffer: (...args: unknown[]) =>
+    submitDesktopVideoOfferMock(...args),
 }));
 
 import { startDesktopRemoteApi } from '../../../src/desktop/remote-api.js';
@@ -168,13 +238,27 @@ describe('desktop-remote-api', () => {
     listDesktopWindowsMock.mockReset();
     moveMouseMock.mockReset();
     moveMouseRelativeMock.mockReset();
+    getDesktopAgentSettingsMock.mockReset();
+    getDesktopAgentStateMock.mockReset();
+    listDesktopAgentLogsMock.mockReset();
     pressKeyMock.mockReset();
     pressHotkeyMock.mockReset();
+    runDesktopAgentMock.mockReset();
+    sendDesktopAgentMessageMock.mockReset();
+    resetDesktopAgentSessionMock.mockReset();
+    addDesktopVideoCandidateMock.mockReset();
+    closeDesktopVideoSessionMock.mockReset();
+    getDesktopVideoSessionMock.mockReset();
+    openDesktopVideoSessionMock.mockReset();
     scrollMouseMock.mockReset();
     startRemoteControlMock.mockReset();
+    stopDesktopAgentMock.mockReset();
     stopRemoteControlMock.mockReset();
+    submitDesktopVideoAnswerMock.mockReset();
+    submitDesktopVideoOfferMock.mockReset();
     setClipboardTextMock.mockReset();
     sendTextMock.mockReset();
+    updateDesktopAgentSettingsMock.mockReset();
     resetDesktopSessionManagerForTests();
     getActiveSessionMock.mockReturnValue(null);
     getDesktopCapabilitiesMock.mockReturnValue({
@@ -211,6 +295,122 @@ describe('desktop-remote-api', () => {
       { processName: 'Code', title: 'MetaAgent', pid: 1001 },
     ]);
     getClipboardTextMock.mockResolvedValue({ text: 'clipboard value' });
+    getDesktopAgentSettingsMock.mockReturnValue({
+      provider: 'codex',
+      executable: 'codex',
+      args: '',
+      cwd: 'D:\\works\\nanoclaw',
+    });
+    getDesktopAgentStateMock.mockReturnValue({
+      status: 'idle',
+      provider: 'codex',
+      prompt: null,
+      pid: null,
+      startedAt: null,
+      finishedAt: null,
+      exitCode: null,
+      cwd: 'D:\\works\\nanoclaw',
+      executable: 'codex',
+      args: '',
+      lastError: null,
+      lastOutput: null,
+    });
+    listDesktopAgentLogsMock.mockReturnValue([]);
+    updateDesktopAgentSettingsMock.mockImplementation((payload) => ({
+      provider: payload.provider ?? 'codex',
+      executable: payload.executable ?? 'codex',
+      args: payload.args ?? '',
+      cwd: payload.cwd ?? 'D:\\works\\nanoclaw',
+    }));
+    getDesktopVideoSessionMock.mockReturnValue(null);
+    openDesktopVideoSessionMock.mockImplementation((payload) => ({
+      id: 'video-session-1',
+      viewerName: payload.viewerName ?? 'MetaAgent viewer',
+      transport: 'webrtc',
+      codec: payload.codec ?? 'h264',
+      preferredWidth: payload.preferredWidth ?? 1280,
+      preferredHeight: payload.preferredHeight ?? 720,
+      preferredFps: payload.preferredFps ?? 30,
+      status: 'preparing',
+      createdAt: '2026-03-22T07:00:00.000Z',
+      updatedAt: '2026-03-22T07:00:00.000Z',
+      lastError: null,
+      viewerOfferSdp: null,
+      hostAnswerSdp: null,
+      candidateCount: 0,
+      notes: ['2026-03-22T07:00:00.000Z desktop video session created'],
+    }));
+    submitDesktopVideoOfferMock.mockImplementation(({ sessionId, sdp }) => ({
+      id: sessionId,
+      viewerName: 'MetaAgent viewer',
+      transport: 'webrtc',
+      codec: 'h264',
+      preferredWidth: 1280,
+      preferredHeight: 720,
+      preferredFps: 30,
+      status: 'negotiating',
+      createdAt: '2026-03-22T07:00:00.000Z',
+      updatedAt: '2026-03-22T07:00:01.000Z',
+      lastError: null,
+      viewerOfferSdp: sdp,
+      hostAnswerSdp: null,
+      candidateCount: 0,
+      notes: [],
+    }));
+    submitDesktopVideoAnswerMock.mockImplementation(({ sessionId, sdp }) => ({
+      id: sessionId,
+      viewerName: 'MetaAgent viewer',
+      transport: 'webrtc',
+      codec: 'h264',
+      preferredWidth: 1280,
+      preferredHeight: 720,
+      preferredFps: 30,
+      status: 'streaming',
+      createdAt: '2026-03-22T07:00:00.000Z',
+      updatedAt: '2026-03-22T07:00:02.000Z',
+      lastError: null,
+      viewerOfferSdp: 'viewer-sdp',
+      hostAnswerSdp: sdp,
+      candidateCount: 0,
+      notes: [],
+    }));
+    addDesktopVideoCandidateMock.mockImplementation(({ sessionId }) => ({
+      id: sessionId,
+      viewerName: 'MetaAgent viewer',
+      transport: 'webrtc',
+      codec: 'h264',
+      preferredWidth: 1280,
+      preferredHeight: 720,
+      preferredFps: 30,
+      status: 'streaming',
+      createdAt: '2026-03-22T07:00:00.000Z',
+      updatedAt: '2026-03-22T07:00:03.000Z',
+      lastError: null,
+      viewerOfferSdp: 'viewer-sdp',
+      hostAnswerSdp: 'host-sdp',
+      candidateCount: 1,
+      notes: [],
+    }));
+    closeDesktopVideoSessionMock.mockReturnValue({
+      closed: true,
+      session: {
+        id: 'video-session-1',
+        viewerName: 'MetaAgent viewer',
+        transport: 'webrtc',
+        codec: 'h264',
+        preferredWidth: 1280,
+        preferredHeight: 720,
+        preferredFps: 30,
+        status: 'closed',
+        createdAt: '2026-03-22T07:00:00.000Z',
+        updatedAt: '2026-03-22T07:00:04.000Z',
+        lastError: null,
+        viewerOfferSdp: 'viewer-sdp',
+        hostAnswerSdp: 'host-sdp',
+        candidateCount: 1,
+        notes: [],
+      },
+    });
 
     server = await startDesktopRemoteApi();
     port = (server.address() as AddressInfo).port;
@@ -237,6 +437,33 @@ describe('desktop-remote-api', () => {
         pairing: {
           autoApprove: false,
           passwordConfigured: false,
+        },
+        agent: {
+          settings: {
+            provider: 'codex',
+            executable: 'codex',
+            args: '',
+            cwd: 'D:\\works\\nanoclaw',
+          },
+          state: {
+            status: 'idle',
+            provider: 'codex',
+            prompt: null,
+            pid: null,
+            startedAt: null,
+            finishedAt: null,
+            exitCode: null,
+            cwd: 'D:\\works\\nanoclaw',
+            executable: 'codex',
+            args: '',
+            lastError: null,
+            lastOutput: null,
+          },
+        },
+        video: {
+          session: null,
+          transport: 'webrtc',
+          capturePipeline: 'desktop-duplication-planned',
         },
       },
     });
@@ -463,6 +690,461 @@ describe('desktop-remote-api', () => {
         height: 1080,
       },
     });
+  });
+
+    it('reads desktop agent state', async () => {
+    getDesktopAgentStateMock.mockReturnValue({
+      status: 'running',
+      provider: 'codex',
+      prompt: 'scan repo',
+      pid: 4242,
+      startedAt: '2026-03-22T06:00:00.000Z',
+      finishedAt: null,
+      exitCode: null,
+      cwd: 'D:\\works\\nanoclaw',
+      executable: 'codex',
+      args: 'exec scan repo',
+      lastError: null,
+      lastOutput: 'Analyzing repository',
+      sessionId: 'session-1',
+      pendingMessageCount: 1,
+      messageCount: 2,
+    });
+    getDesktopAgentSessionMock.mockReturnValue({
+      id: 'session-1',
+      provider: 'codex',
+      cwd: 'D:\\works\\nanoclaw',
+      executable: 'codex',
+      args: '',
+      startedAt: '2026-03-22T06:00:00.000Z',
+      updatedAt: '2026-03-22T06:01:00.000Z',
+      lastTurnAt: '2026-03-22T06:01:00.000Z',
+      pendingMessageCount: 1,
+      messageCount: 2,
+    });
+
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/agent/state',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        settings: {
+          provider: 'codex',
+          executable: 'codex',
+          args: '',
+          cwd: 'D:\\works\\nanoclaw',
+        },
+        state: {
+          status: 'running',
+          provider: 'codex',
+          prompt: 'scan repo',
+          pid: 4242,
+          startedAt: '2026-03-22T06:00:00.000Z',
+          finishedAt: null,
+          exitCode: null,
+          cwd: 'D:\\works\\nanoclaw',
+          executable: 'codex',
+          args: 'exec scan repo',
+          lastError: null,
+          lastOutput: 'Analyzing repository',
+          sessionId: 'session-1',
+          pendingMessageCount: 1,
+          messageCount: 2,
+        },
+        session: {
+          id: 'session-1',
+          provider: 'codex',
+          cwd: 'D:\\works\\nanoclaw',
+          executable: 'codex',
+          args: '',
+          startedAt: '2026-03-22T06:00:00.000Z',
+          updatedAt: '2026-03-22T06:01:00.000Z',
+          lastTurnAt: '2026-03-22T06:01:00.000Z',
+          pendingMessageCount: 1,
+          messageCount: 2,
+        },
+      },
+    });
+  });
+
+  it('reads desktop agent logs', async () => {
+    listDesktopAgentLogsMock.mockReturnValue([
+      { at: '2026-03-22T06:00:00.000Z', stream: 'stdout', line: 'line one' },
+      { at: '2026-03-22T06:00:01.000Z', stream: 'system', line: 'line two' },
+    ]);
+
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/agent/logs?limit=2',
+    });
+
+    expect(listDesktopAgentLogsMock).toHaveBeenCalledWith(2);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        logs: [
+          { at: '2026-03-22T06:00:00.000Z', stream: 'stdout', line: 'line one' },
+          { at: '2026-03-22T06:00:01.000Z', stream: 'system', line: 'line two' },
+        ],
+      },
+    });
+  });
+
+    it('runs desktop agent', async () => {
+    runDesktopAgentMock.mockReturnValue({
+      ok: true,
+      state: {
+        status: 'running',
+        provider: 'codex',
+        prompt: 'review repo',
+        pid: 7788,
+        startedAt: '2026-03-22T06:10:00.000Z',
+        finishedAt: null,
+        exitCode: null,
+        cwd: 'D:\\works\\nanoclaw',
+        executable: 'codex',
+        args: 'exec review repo',
+        lastError: null,
+        lastOutput: null,
+        sessionId: 'session-2',
+        pendingMessageCount: 0,
+        messageCount: 1,
+      },
+    });
+    getDesktopAgentSessionMock.mockReturnValue({
+      id: 'session-2',
+      provider: 'codex',
+      cwd: 'D:\\works\\nanoclaw',
+      executable: 'codex',
+      args: '',
+      startedAt: '2026-03-22T06:10:00.000Z',
+      updatedAt: '2026-03-22T06:10:00.000Z',
+      lastTurnAt: null,
+      pendingMessageCount: 0,
+      messageCount: 1,
+    });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/agent/run',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ prompt: 'review repo', provider: 'codex', cwd: 'D:/works/nanoclaw' }),
+    );
+
+    expect(runDesktopAgentMock).toHaveBeenCalledWith({
+      prompt: 'review repo',
+      provider: 'codex',
+      cwd: 'D:/works/nanoclaw',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        state: {
+          status: 'running',
+          provider: 'codex',
+          prompt: 'review repo',
+          pid: 7788,
+          startedAt: '2026-03-22T06:10:00.000Z',
+          finishedAt: null,
+          exitCode: null,
+          cwd: 'D:\\works\\nanoclaw',
+          executable: 'codex',
+          args: 'exec review repo',
+          lastError: null,
+          lastOutput: null,
+          sessionId: 'session-2',
+          pendingMessageCount: 0,
+          messageCount: 1,
+        },
+        session: {
+          id: 'session-2',
+          provider: 'codex',
+          cwd: 'D:\\works\\nanoclaw',
+          executable: 'codex',
+          args: '',
+          startedAt: '2026-03-22T06:10:00.000Z',
+          updatedAt: '2026-03-22T06:10:00.000Z',
+          lastTurnAt: null,
+          pendingMessageCount: 0,
+          messageCount: 1,
+        },
+      },
+    });
+  });
+
+  it('queues interactive desktop agent message', async () => {
+    sendDesktopAgentMessageMock.mockReturnValue({
+      ok: true,
+      state: {
+        status: 'running',
+        provider: 'codex',
+        prompt: 'follow up',
+        pid: 9001,
+        startedAt: '2026-03-22T06:12:00.000Z',
+        finishedAt: null,
+        exitCode: null,
+        cwd: 'D:\\works\\nanoclaw',
+        executable: 'codex',
+        args: 'exec follow up',
+        lastError: null,
+        lastOutput: null,
+        sessionId: 'session-3',
+        pendingMessageCount: 1,
+        messageCount: 3,
+      },
+      session: {
+        id: 'session-3',
+        provider: 'codex',
+        cwd: 'D:\\works\\nanoclaw',
+        executable: 'codex',
+        args: '',
+        startedAt: '2026-03-22T06:10:00.000Z',
+        updatedAt: '2026-03-22T06:12:00.000Z',
+        lastTurnAt: '2026-03-22T06:11:00.000Z',
+        pendingMessageCount: 1,
+        messageCount: 3,
+      },
+      message: {
+        id: 'message-1',
+        role: 'user',
+        text: 'follow up',
+        at: '2026-03-22T06:12:00.000Z',
+        turn: 3,
+        state: 'queued',
+      },
+    });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/agent/message',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ message: 'follow up', provider: 'codex', cwd: 'D:/works/nanoclaw' }),
+    );
+
+    expect(sendDesktopAgentMessageMock).toHaveBeenCalledWith({
+      message: 'follow up',
+      provider: 'codex',
+      cwd: 'D:/works/nanoclaw',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).ok).toBe(true);
+  });
+
+  it('stops desktop agent', async () => {
+    stopDesktopAgentMock.mockReturnValue({
+      ok: true,
+      message: 'Stop signal sent',
+    });
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/agent/stop',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({}),
+    );
+
+    expect(stopDesktopAgentMock).toHaveBeenCalledTimes(1);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        ok: true,
+        message: 'Stop signal sent',
+      },
+    });
+  });
+
+  it('updates desktop agent settings through admin endpoint', async () => {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    mockConfig.DESKTOP_REMOTE_ADMIN_TOKEN = 'admin-secret';
+    server = await startDesktopRemoteApi();
+    port = (server.address() as AddressInfo).port;
+
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/pair/admin/agent-settings',
+        headers: {
+          'content-type': 'application/json',
+          'x-desktop-admin-token': 'admin-secret',
+        },
+      },
+      JSON.stringify({
+        provider: 'claude',
+        executable: 'claude',
+        args: '-p {prompt}',
+        cwd: 'D:/workspace',
+      }),
+      false,
+    );
+
+    expect(updateDesktopAgentSettingsMock).toHaveBeenCalledWith({
+      provider: 'claude',
+      executable: 'claude',
+      args: '-p {prompt}',
+      cwd: 'D:/workspace',
+    });
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      ok: true,
+      data: {
+        settings: {
+          provider: 'claude',
+          executable: 'claude',
+          args: '-p {prompt}',
+          cwd: 'D:/workspace',
+        },
+      },
+    });
+  });
+
+  it('opens desktop video session', async () => {
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/video/session/open',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({
+        viewerName: 'Android phone',
+        codec: 'h264',
+        preferredWidth: 1920,
+        preferredHeight: 1080,
+        preferredFps: 30,
+      }),
+    );
+
+    expect(openDesktopVideoSessionMock).toHaveBeenCalledWith({
+      viewerName: 'Android phone',
+      codec: 'h264',
+      preferredWidth: 1920,
+      preferredHeight: 1080,
+      preferredFps: 30,
+    });
+    expect(response.statusCode).toBe(200);
+  });
+
+  it('reads desktop video session state', async () => {
+    getDesktopVideoSessionMock.mockReturnValue({
+      id: 'video-session-1',
+      viewerName: 'Android phone',
+      transport: 'webrtc',
+      codec: 'h264',
+      preferredWidth: 1280,
+      preferredHeight: 720,
+      preferredFps: 30,
+      status: 'negotiating',
+      createdAt: '2026-03-22T07:00:00.000Z',
+      updatedAt: '2026-03-22T07:00:01.000Z',
+      lastError: null,
+      viewerOfferSdp: 'viewer-sdp',
+      hostAnswerSdp: null,
+      candidateCount: 0,
+      notes: [],
+    });
+
+    const response = await makeRequest(port, {
+      method: 'GET',
+      path: '/api/desktop/video/session',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).data.transport).toBe('webrtc');
+  });
+
+  it('accepts desktop video offer, answer and candidate', async () => {
+    const offerResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/video/session/offer',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ sessionId: 'video-session-1', sdp: 'viewer-sdp' }),
+    );
+    expect(submitDesktopVideoOfferMock).toHaveBeenCalledWith({
+      sessionId: 'video-session-1',
+      sdp: 'viewer-sdp',
+    });
+    expect(offerResponse.statusCode).toBe(200);
+
+    const answerResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/video/session/answer',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ sessionId: 'video-session-1', sdp: 'host-sdp' }),
+    );
+    expect(submitDesktopVideoAnswerMock).toHaveBeenCalledWith({
+      sessionId: 'video-session-1',
+      sdp: 'host-sdp',
+    });
+    expect(answerResponse.statusCode).toBe(200);
+
+    const candidateResponse = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/video/session/candidate',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({ sessionId: 'video-session-1', candidate: 'candidate-1' }),
+    );
+    expect(addDesktopVideoCandidateMock).toHaveBeenCalledWith({
+      sessionId: 'video-session-1',
+      candidate: 'candidate-1',
+    });
+    expect(candidateResponse.statusCode).toBe(200);
+  });
+
+  it('closes desktop video session', async () => {
+    const response = await makeRequest(
+      port,
+      {
+        method: 'POST',
+        path: '/api/desktop/video/session/close',
+        headers: {
+          'content-type': 'application/json',
+        },
+      },
+      JSON.stringify({}),
+    );
+
+    expect(closeDesktopVideoSessionMock).toHaveBeenCalledTimes(1);
+    expect(response.statusCode).toBe(200);
   });
 
   it('starts remote control with request body values', async () => {
