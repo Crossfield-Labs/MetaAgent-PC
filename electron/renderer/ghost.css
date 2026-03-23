@@ -10,6 +10,7 @@ body {
 }
 
 .ghost-shell {
+  position: relative;
   display: flex;
   gap: 14px;
   align-items: center;
@@ -24,6 +25,13 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(18px) saturate(1.08);
   -webkit-backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.ghost-drag {
+  position: absolute;
+  inset: 0;
+  -webkit-app-region: drag;
+  border-radius: 18px;
 }
 
 .ghost-dot {
@@ -44,6 +52,8 @@ body {
   gap: 8px;
   align-items: center;
   margin-bottom: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 .ghost-eyebrow,
@@ -58,11 +68,31 @@ body {
   letter-spacing: 0.08em;
 }
 
+.ghost-close {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(19, 30, 45, 0.08);
+  color: #162033;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.ghost-close:hover {
+  background: rgba(19, 30, 45, 0.14);
+}
+
 #ghostTitle {
   display: block;
   color: #162033;
   font-size: 15px;
   margin-bottom: 4px;
+  position: relative;
+  z-index: 1;
 }
 
 #ghostPrompt {
@@ -74,4 +104,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 260px;
+  position: relative;
+  z-index: 1;
+}
+
+#ghostMeta {
+  position: relative;
+  z-index: 1;
 }

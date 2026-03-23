@@ -1,5 +1,5 @@
 import { createDom } from './dom.js';
-import { hidePairingModal, renderAgentSession, renderState, setView } from './render.js';
+import { hidePairingModal, renderAgentSession, renderState, setControlView, setView } from './render.js';
 import { createPollingController } from './polling.js';
 import { createPairingController } from './pairing.js';
 import { createDesktopActions } from './actions.js';
@@ -26,6 +26,7 @@ export async function bootstrap() {
   const initialState = await window.metaAgentDesktop.getState();
   renderState(el, initialState);
   setView(el, 'overview');
+  setControlView(el, 'agent');
   hidePairingModal(el);
   renderAgentSession(el, null);
 

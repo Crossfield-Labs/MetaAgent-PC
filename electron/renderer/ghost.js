@@ -2,6 +2,7 @@ const providerEl = document.querySelector('#ghostProvider');
 const titleEl = document.querySelector('#ghostTitle');
 const promptEl = document.querySelector('#ghostPrompt');
 const metaEl = document.querySelector('#ghostMeta');
+const closeEl = document.querySelector('#ghostClose');
 
 window.metaAgentDesktop.onGhostState((state) => {
   providerEl.textContent = (state.provider || 'codex').toUpperCase();
@@ -16,4 +17,8 @@ window.metaAgentDesktop.onGhostState((state) => {
       })
     : '刚刚';
   metaEl.textContent = `${state.status} · ${startedAt}`;
+});
+
+closeEl?.addEventListener('click', () => {
+  window.metaAgentDesktop.hideGhost();
 });

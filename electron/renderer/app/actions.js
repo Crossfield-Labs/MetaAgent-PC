@@ -1,5 +1,5 @@
 import { currentConfig, invokeAdmin, invokeApi } from './api.js';
-import { renderAgentSession, renderEvents, renderLogEntry, renderScreenshot, renderState, setResponse, setView } from './render.js';
+import { renderAgentSession, renderEvents, renderLogEntry, renderScreenshot, renderState, setControlView, setResponse, setView } from './render.js';
 
 async function copyText(value) {
   try {
@@ -357,6 +357,9 @@ export function createDesktopActions(el, pairingController, pollingController) {
     });
     el.navItems.forEach((item) => {
       item.addEventListener('click', () => setView(el, item.dataset.view));
+    });
+    el.controlTabs.forEach((item) => {
+      item.addEventListener('click', () => setControlView(el, item.dataset.controlView));
     });
   }
 

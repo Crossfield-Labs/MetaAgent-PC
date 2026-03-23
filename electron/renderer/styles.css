@@ -776,3 +776,148 @@ button:disabled {
     flex-wrap: wrap;
   }
 }
+
+.content {
+  max-width: 1320px;
+  width: 100%;
+}
+
+.sidebar .nav-item.secondary {
+  opacity: 0.72;
+}
+
+.sidebar .nav-item.secondary:hover,
+.sidebar .nav-item.secondary.active {
+  opacity: 1;
+}
+
+.hero.compact {
+  padding: 26px 28px;
+}
+
+.control-shell {
+  display: grid;
+  gap: 20px;
+  padding: 22px;
+  border-radius: 18px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  width: fit-content;
+  border-radius: 14px;
+  background: rgba(236, 241, 248, 0.88);
+  border: 1px solid rgba(37, 53, 74, 0.08);
+}
+
+.segment {
+  border: 0;
+  min-width: 124px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.segment.active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 18px rgba(24, 39, 75, 0.08);
+}
+
+.control-panel {
+  display: none;
+}
+
+.control-panel.active {
+  display: block;
+}
+
+.control-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.control-layout-agent {
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.8fr);
+}
+
+.control-layout-desktop,
+.control-layout-video {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.control-side-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.inset-card {
+  box-shadow: var(--shadow-soft);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(247, 250, 255, 0.92)),
+    rgba(251, 253, 255, 0.92);
+}
+
+.compact-box {
+  min-height: 120px;
+  max-height: 240px;
+}
+
+.tip-list {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  display: grid;
+  gap: 10px;
+  line-height: 1.55;
+}
+
+.list-panel {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.diagnostic-grid {
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+}
+
+[data-view="logs"] .card {
+  box-shadow: 0 8px 20px rgba(24, 39, 75, 0.05);
+}
+
+[data-view="logs"] .list-panel {
+  min-height: 240px;
+  max-height: 520px;
+}
+
+[data-view="logs"] .list-item {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.66);
+}
+
+@media (max-width: 1180px) {
+  .control-layout-agent,
+  .control-layout-desktop,
+  .control-layout-video,
+  .diagnostic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented-control {
+    width: 100%;
+    overflow: auto;
+  }
+
+  .segment {
+    min-width: 108px;
+  }
+}

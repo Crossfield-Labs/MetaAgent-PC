@@ -1,0 +1,16 @@
+.diagnostic-item strong,
+.request-item strong {
+  font-size: 14px;
+}
+
+.diagnostic-item small,
+.request-item small {
+  color: var(--text-soft);
+}
+
+.label {
+  color: var(--text-soft);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

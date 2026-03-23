@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('metaAgentDesktop', {
     ipcRenderer.on('ghost-state', handler);
     return () => ipcRenderer.removeListener('ghost-state', handler);
   },
+  hideGhost: () => ipcRenderer.invoke('ghost:hide'),
   onVideoSession: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on('video-session', handler);

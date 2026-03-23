@@ -366,7 +366,11 @@ async function stopDesktopServer() {
 }
 
 ipcMain.handle('desktop:get-state', async () => statePayload());
-ipcMain.handle('desktop:get-defaults', async () => ({ config: currentConfig, endpoint: displayEndpointFor(currentConfig) }));
+ipcMain.handle('desktop:get-defaults', async () => ({
+  config: currentConfig,
+  endpoint: displayEndpointFor(currentConfig),
+  adminToken,
+}));
 ipcMain.handle('desktop:start', async (_event, config) => startDesktopServer(config));
 ipcMain.handle('desktop:stop', async () => stopDesktopServer());
 ipcMain.handle('desktop:api', async (_event, payload) => requestDesktopApi(payload));
@@ -375,6 +379,12 @@ ipcMain.handle('desktop:open-project', async () => {
   await shell.openPath(app.isPackaged ? runtimeRoot : projectRoot);
 });
 ipcMain.handle('desktop:admin-api', async (_event, payload) => requestAdminApi(payload));
+ipcMain.handle('ghost:hide', async () => {
+  if (ghostWindow && !ghostWindow.isDestroyed()) {
+    ghostWindow.hide();
+  }
+  return { ok: true };
+});
 
 app.whenReady().then(() => {
   session.defaultSession.setDisplayMediaRequestHandler(

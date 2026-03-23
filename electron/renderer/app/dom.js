@@ -9,11 +9,11 @@ export const viewMeta = {
   },
   control: {
     title: '桌面控制',
-    description: '调试截图、鼠标、键盘与桌面输入链路。',
+    description: '把 Agent、桌面交互和远程桌面拆开处理，减少一页堆叠。',
   },
   logs: {
-    title: '日志事件',
-    description: '查看桌面服务事件流、进程输出和最近错误。',
+    title: '诊断',
+    description: '查看最近事件、服务输出和异常线索。',
   },
 };
 
@@ -95,5 +95,7 @@ export function createDom() {
     openProjectButton: document.querySelector('#openProjectButton'),
     navItems: Array.from(document.querySelectorAll('.nav-item')),
     views: Array.from(document.querySelectorAll('.view-stack')),
+    controlTabs: Array.from(document.querySelectorAll('[data-control-view]')),
+    controlPanels: Array.from(document.querySelectorAll('[data-control-panel]')),
   };
 }

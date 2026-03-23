@@ -2,6 +2,7 @@ import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
+import { EventEmitter } from 'events';
 
 import {
   DESKTOP_AGENT_ARGS,
@@ -49,9 +50,17 @@ export interface DesktopAgentMessage {
   state: 'queued' | 'processing' | 'completed' | 'error';
 }
 
+interface ParsedCodexEvent {
+  threadId?: string;
+  agentMessage?: string;
+  commandStarted?: string;
+  commandCompleted?: string;
+}
+
 export interface DesktopAgentSession {
   id: string;
   provider: DesktopAgentProvider;
+  nativeThreadId: string | null;
   cwd: string;
   executable: string;
   args: string;
@@ -78,6 +87,14 @@ export interface DesktopAgentState {
   sessionId: string | null;
   pendingMessageCount: number;
   messageCount: number;
+}
+
+export interface DesktopAgentSnapshot {
+  settings: DesktopAgentSettings;
+  state: DesktopAgentState;
+  session: DesktopAgentSession | null;
+  messages: DesktopAgentMessage[];
+  logs: DesktopAgentLogEntry[];
 }
 
 const MAX_LOG_ENTRIES = 300;
@@ -119,6 +136,11 @@ const logs: DesktopAgentLogEntry[] = [];
 const messages: DesktopAgentMessage[] = [];
 const queuedMessageIds: string[] = [];
 let turnCounter = 0;
+const agentEvents = new EventEmitter();
+
+function emitAgentSnapshot(): void {
+  agentEvents.emit('snapshot', getDesktopAgentSnapshot());
+}
 
 function normalizeProvider(value?: string): DesktopAgentProvider {
   return value?.toLowerCase() === 'claude' ? 'claude' : 'codex';
@@ -149,6 +171,7 @@ function appendLog(stream: DesktopAgentLogEntry['stream'], line: string): void {
     logs.shift();
   }
   state.lastOutput = trimmed;
+  emitAgentSnapshot();
 }
 
 function splitArgs(value: string): string[] {
@@ -156,13 +179,6 @@ function splitArgs(value: string): string[] {
   return matches.map((part) =>
     part.startsWith('"') || part.startsWith("'") ? part.slice(1, -1) : part,
   );
-}
-
-function quoteForCmd(value: string): string {
-  const escaped = value
-    .replace(/(\\*)"/g, '$1$1\\"')
-    .replace(/(\\+)$/g, '$1$1');
-  return `"${escaped}"`;
 }
 
 function resolveExecutableForWindows(executable: string): string {
@@ -191,12 +207,46 @@ function resolveExecutableForWindows(executable: string): string {
   return executable;
 }
 
+function resolveNodeBackedCodexCommand(command: {
+  executable: string;
+  args: string[];
+}): { executable: string; args: string[] } {
+  if (process.platform !== 'win32') {
+    return command;
+  }
+
+  const resolvedExecutable = resolveExecutableForWindows(command.executable);
+  const executableName = path.basename(resolvedExecutable).toLowerCase();
+  if (!['codex', 'codex.cmd', 'codex.ps1'].includes(executableName)) {
+    return command;
+  }
+
+  const basedir = path.dirname(resolvedExecutable);
+  const codexJsPath = path.join(
+    basedir,
+    'node_modules',
+    '@openai',
+    'codex',
+    'bin',
+    'codex.js',
+  );
+  if (!fs.existsSync(codexJsPath)) {
+    return command;
+  }
+
+  return {
+    executable: process.execPath,
+    args: [codexJsPath, ...command.args],
+  };
+}
+
 function ensureSession(provider: DesktopAgentProvider): DesktopAgentSession {
   const now = new Date().toISOString();
   if (!session) {
     session = {
       id: randomUUID(),
       provider,
+      nativeThreadId: null,
       cwd: settings.cwd,
       executable: settings.executable,
       args: settings.args,
@@ -256,6 +306,7 @@ function pushMessage(
     messages.shift();
   }
   syncDerivedState();
+  emitAgentSnapshot();
   return message;
 }
 
@@ -267,6 +318,18 @@ function updateMessage(
   if (!target) return;
   target.state = nextState;
   syncDerivedState();
+  emitAgentSnapshot();
+}
+
+function findLastMessage(
+  role: DesktopAgentMessageRole,
+): DesktopAgentMessage | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === role) {
+      return messages[index];
+    }
+  }
+  return undefined;
 }
 
 function buildPromptFromMessages(triggerMessage: DesktopAgentMessage): string {
@@ -290,7 +353,14 @@ function buildPromptFromMessages(triggerMessage: DesktopAgentMessage): string {
   ].join('\n');
 }
 
-function buildCommand(prompt: string): { executable: string; args: string[] } {
+function buildCommand(triggerMessage: DesktopAgentMessage): {
+  executable: string;
+  args: string[];
+} {
+  const prompt =
+    settings.provider === 'codex'
+      ? triggerMessage.text
+      : buildPromptFromMessages(triggerMessage);
   const baseArgs = splitArgs(settings.args);
   if (baseArgs.length > 0) {
     return {
@@ -300,9 +370,12 @@ function buildCommand(prompt: string): { executable: string; args: string[] } {
   }
 
   if (settings.provider === 'codex') {
+    const resumeThreadId = session?.nativeThreadId?.trim();
     return {
       executable: settings.executable,
-      args: ['exec', prompt],
+      args: resumeThreadId
+        ? ['exec', 'resume', '--json', resumeThreadId, prompt]
+        : ['exec', '--json', prompt],
     };
   }
 
@@ -310,6 +383,79 @@ function buildCommand(prompt: string): { executable: string; args: string[] } {
     executable: settings.executable,
     args: ['-p', prompt],
   };
+}
+
+function parseCodexJsonOutput(stdout: string): string | null {
+  const lines = stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  let lastAgentMessage: string | null = null;
+  for (const line of lines) {
+    try {
+      const payload = JSON.parse(line);
+      if (
+        payload?.type === 'item.completed' &&
+        payload.item?.type === 'agent_message'
+      ) {
+        const text = payload.item?.text;
+        if (typeof text === 'string' && text.trim()) {
+          lastAgentMessage = text.trim();
+        }
+      }
+    } catch {
+      // ignore non-JSON lines
+    }
+  }
+
+  return lastAgentMessage;
+}
+
+function parseCodexJsonLine(line: string): ParsedCodexEvent {
+  try {
+    const payload = JSON.parse(line);
+    if (
+      payload?.type === 'thread.started' &&
+      typeof payload.thread_id === 'string'
+    ) {
+      return { threadId: payload.thread_id };
+    }
+    if (
+      payload?.type === 'item.started' &&
+      payload.item?.type === 'command_execution'
+    ) {
+      const command = payload.item?.command;
+      if (typeof command === 'string' && command.trim()) {
+        return { commandStarted: command.trim() };
+      }
+    }
+    if (
+      payload?.type === 'item.completed' &&
+      payload.item?.type === 'command_execution'
+    ) {
+      const command = payload.item?.command;
+      const exitCode = payload.item?.exit_code;
+      if (typeof command === 'string' && command.trim()) {
+        return {
+          commandCompleted: `${command.trim()}${typeof exitCode === 'number' ? ` · exit ${exitCode}` : ''}`,
+        };
+      }
+    }
+    if (
+      payload?.type === 'item.completed' &&
+      payload.item?.type === 'agent_message'
+    ) {
+      const text = payload.item?.text;
+      if (typeof text === 'string' && text.trim()) {
+        return { agentMessage: text.trim() };
+      }
+    }
+  } catch {
+    // ignore non-JSON lines
+  }
+
+  return {};
 }
 
 function settle(
@@ -327,6 +473,7 @@ function settle(
   };
   activeProcess = null;
   syncDerivedState();
+  emitAgentSnapshot();
 }
 
 function processNextMessage(): void {
@@ -344,10 +491,11 @@ function processNextMessage(): void {
   }
 
   updateMessage(nextMessage.id, 'processing');
-  const prompt = buildPromptFromMessages(nextMessage);
-  const command = buildCommand(prompt);
+  const command = resolveNodeBackedCodexCommand(buildCommand(nextMessage));
   let stdoutBuffer = '';
   let stderrBuffer = '';
+  let latestCodexMessage: string | null = null;
+  let emittedAssistantForTurn = false;
 
   appendLog(
     'system',
@@ -356,18 +504,16 @@ function processNextMessage(): void {
 
   try {
     const useCmdWrapper =
-      process.platform === 'win32' && /\.(cmd|bat)$/i.test(command.executable);
+      process.platform === 'win32' &&
+      /\.(cmd|bat)$/i.test(command.executable) &&
+      path.basename(command.executable).toLowerCase() !== 'codex.cmd';
     if (useCmdWrapper) {
-      const comspec = process.env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
       const resolvedExecutable = resolveExecutableForWindows(
         command.executable,
       );
-      const commandLine = [
-        quoteForCmd(resolvedExecutable),
-        ...command.args.map((arg) => quoteForCmd(arg)),
-      ].join(' ');
-      activeProcess = spawn(comspec, ['/d', '/s', '/c', commandLine], {
+      activeProcess = spawn(resolvedExecutable, command.args, {
         cwd: settings.cwd,
+        shell: true,
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: process.env,
@@ -412,7 +558,44 @@ function processNextMessage(): void {
     text
       .split(/\r?\n/)
       .filter(Boolean)
-      .forEach((line: string) => appendLog('stdout', line));
+      .forEach((line: string) => {
+        appendLog('stdout', line);
+        if (settings.provider === 'codex') {
+          const parsed = parseCodexJsonLine(line);
+          if (parsed.threadId && session) {
+            session.nativeThreadId = parsed.threadId;
+            session.updatedAt = new Date().toISOString();
+            emitAgentSnapshot();
+          }
+          if (parsed.commandStarted) {
+            pushMessage(
+              'system',
+              `正在执行：${parsed.commandStarted}`,
+              'processing',
+            );
+          }
+          if (parsed.commandCompleted) {
+            pushMessage(
+              'system',
+              `命令完成：${parsed.commandCompleted}`,
+              'completed',
+            );
+          }
+          if (parsed.agentMessage) {
+            latestCodexMessage = parsed.agentMessage;
+            emittedAssistantForTurn = true;
+            const lastAssistant = findLastMessage('assistant');
+            if (lastAssistant && lastAssistant.state === 'processing') {
+              lastAssistant.text = parsed.agentMessage;
+              lastAssistant.state = 'completed';
+              lastAssistant.at = new Date().toISOString();
+              syncDerivedState();
+            } else {
+              pushMessage('assistant', parsed.agentMessage, 'completed');
+            }
+          }
+        }
+      });
   });
 
   activeProcess.stderr?.on('data', (chunk) => {
@@ -436,17 +619,24 @@ function processNextMessage(): void {
   });
 
   activeProcess.on('exit', (code) => {
-    const output = stdoutBuffer.trim() || stderrBuffer.trim();
+    const codexJsonOutput =
+      settings.provider === 'codex'
+        ? latestCodexMessage || parseCodexJsonOutput(stdoutBuffer)
+        : null;
+    const output =
+      codexJsonOutput || stdoutBuffer.trim() || stderrBuffer.trim();
     if (code === 0) {
       updateMessage(nextMessage.id, 'completed');
-      if (output) {
+      if (output && !emittedAssistantForTurn) {
         pushMessage('assistant', output, 'completed');
       } else {
-        pushMessage(
-          'assistant',
-          `${settings.provider} completed without textual output.`,
-          'completed',
-        );
+        if (!emittedAssistantForTurn) {
+          pushMessage(
+            'assistant',
+            `${settings.provider} completed without textual output.`,
+            'completed',
+          );
+        }
       }
       appendLog('system', `${settings.provider} agent finished`);
       if (session) {
@@ -494,6 +684,17 @@ export function getDesktopAgentSession(): DesktopAgentSession | null {
   return session ? { ...session } : null;
 }
 
+export function getDesktopAgentSnapshot(): DesktopAgentSnapshot {
+  syncDerivedState();
+  return {
+    settings: getDesktopAgentSettings(),
+    state: getDesktopAgentState(),
+    session: getDesktopAgentSession(),
+    messages: listDesktopAgentMessages(120),
+    logs: listDesktopAgentLogs(120),
+  };
+}
+
 export function listDesktopAgentMessages(limit = 120): DesktopAgentMessage[] {
   return messages.slice(-Math.max(1, limit)).map((message) => ({ ...message }));
 }
@@ -529,6 +730,7 @@ export function resetDesktopAgentSession(): { ok: true } {
     pendingMessageCount: 0,
     messageCount: 0,
   };
+  emitAgentSnapshot();
   return { ok: true };
 }
 
@@ -540,6 +742,15 @@ export function stopDesktopAgent(): { ok: boolean; message: string } {
   appendLog('system', 'Stopping desktop agent process');
   activeProcess.kill('SIGTERM');
   return { ok: true, message: 'Stop signal sent' };
+}
+
+export function subscribeDesktopAgentSnapshots(
+  listener: (snapshot: DesktopAgentSnapshot) => void,
+): () => void {
+  agentEvents.on('snapshot', listener);
+  return () => {
+    agentEvents.off('snapshot', listener);
+  };
 }
 
 export function sendDesktopAgentMessage(request: DesktopAgentMessageRequest):

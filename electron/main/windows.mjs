@@ -1,7 +1,10 @@
 import { BrowserWindow, Menu } from 'electron';
+import fs from 'node:fs';
 import path from 'node:path';
 
 export function createMainWindow(__dirname) {
+  const distIndex = path.join(__dirname, 'renderer-dist', 'index.html');
+  const sourceIndex = path.join(__dirname, 'renderer', 'index.html');
   Menu.setApplicationMenu(null);
   const window = new BrowserWindow({
     width: 1280,
@@ -19,7 +22,7 @@ export function createMainWindow(__dirname) {
     },
   });
 
-  window.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  window.loadFile(fs.existsSync(distIndex) ? distIndex : sourceIndex);
   return window;
 }
 
@@ -30,10 +33,10 @@ export function createGhostWindow(__dirname) {
     frame: false,
     transparent: true,
     resizable: false,
-    movable: false,
+    movable: true,
     skipTaskbar: true,
     alwaysOnTop: true,
-    focusable: false,
+    focusable: true,
     show: false,
     hasShadow: false,
     webPreferences: {
@@ -44,7 +47,6 @@ export function createGhostWindow(__dirname) {
   });
 
   window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  window.setIgnoreMouseEvents(true, { forward: true });
   window.loadFile(path.join(__dirname, 'renderer', 'ghost.html'));
   return window;
 }

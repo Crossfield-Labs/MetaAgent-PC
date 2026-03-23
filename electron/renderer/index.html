@@ -65,9 +65,9 @@
             <span class="nav-icon">⌘</span>
             <span>桌面控制</span>
           </button>
-          <button class="nav-item" data-view="logs">
+          <button class="nav-item secondary" data-view="logs">
             <span class="nav-icon">≡</span>
-            <span>日志事件</span>
+            <span>诊断</span>
           </button>
         </nav>
 
@@ -147,33 +147,6 @@
                   <span>Token</span>
                   <input id="tokenInput" type="text" placeholder="Optional Bearer token" />
                 </label>
-                <label>
-                  <span>AI Provider</span>
-                  <select id="agentProviderInput">
-                    <option value="codex">Codex</option>
-                    <option value="claude">Claude Code</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Pair Password</span>
-                  <input id="pairPasswordInput" type="text" placeholder="Password shown on phone after approval" />
-                </label>
-                <label class="full">
-                  <span>AI Executable</span>
-                  <input id="agentExecutableInput" type="text" placeholder="codex.cmd" />
-                </label>
-                <label class="full">
-                  <span>AI Args</span>
-                  <input id="agentArgsInput" type="text" placeholder="exec {prompt}" />
-                </label>
-                <label class="full">
-                  <span>AI CWD</span>
-                  <input id="agentCwdInput" type="text" placeholder="D:\\workspaces\\project" />
-                </label>
-                <label class="checkbox-field">
-                  <span>自动同意</span>
-                  <input id="autoApproveInput" type="checkbox" />
-                </label>
               </div>
 
               <pre id="healthOutput" class="response-box">状态检查结果会显示在这里。</pre>
@@ -220,6 +193,16 @@
               <div class="button-row">
                 <button id="savePairingButton" class="primary-button subtle">保存授权设置</button>
               </div>
+              <div class="form-grid">
+                <label>
+                  <span>配对密码</span>
+                  <input id="pairPasswordInput" type="text" placeholder="手机批准后输入的密码" />
+                </label>
+                <label class="checkbox-field">
+                  <span>自动同意</span>
+                  <input id="autoApproveInput" type="checkbox" />
+                </label>
+              </div>
               <pre id="pairingOutput" class="response-box">授权设置结果会显示在这里。</pre>
             </div>
 
@@ -240,167 +223,239 @@
           <section class="hero compact card">
             <div>
               <span class="eyebrow">桌面控制</span>
-              <h2>Agent、视频会话与输入调试</h2>
-              <p>这里集中处理 AI 会话、远程桌面会话和基础输入调试。</p>
+              <h2>分区处理 Agent、远程桌面与调试操作</h2>
+              <p>按任务类型切换区域，避免把会话、视频和输入调试堆在同一屏里。</p>
             </div>
           </section>
 
-          <section class="grid two-up">
-            <div class="card agent-session-card">
-              <div class="card-header">
-                <div>
-                  <span class="eyebrow">AI 执行</span>
-                  <h3>桌面 Agent 会话</h3>
-                </div>
-                <button id="saveAgentButton" class="ghost-button small">保存 AI 配置</button>
-              </div>
-
-              <div class="meta-pills compact-pills">
-                <div class="meta-pill">
-                  <span class="meta-key">状态</span>
-                  <span id="agentStatusText">idle</span>
-                </div>
-                <div class="meta-pill">
-                  <span class="meta-key">会话</span>
-                  <span id="agentSessionIdText">-</span>
-                </div>
-                <div class="meta-pill">
-                  <span class="meta-key">待处理</span>
-                  <span id="agentPendingText">0</span>
-                </div>
-              </div>
-
-              <p id="agentSessionHint" class="muted conversation-hint">还没有活动会话。发送第一条消息后会自动创建会话。</p>
-              <div id="agentMessagesList" class="conversation-panel empty">当前还没有会话消息。</div>
-
-              <label class="stacked conversation-composer">
-                <span>发送给 Agent</span>
-                <textarea id="agentPromptInput" rows="4" placeholder="给电脑端 Agent 发一个任务或追问"></textarea>
-              </label>
-
-              <div class="button-row wrap">
-                <button id="runAgentButton" class="primary-button subtle">发送并运行</button>
-                <button id="refreshAgentButton" class="ghost-button">刷新会话</button>
-                <button id="stopAgentButton" class="ghost-button">停止当前回合</button>
-                <button id="resetAgentButton" class="ghost-button">重置会话</button>
-                <button id="agentLogsButton" class="ghost-button">查看日志</button>
-                <button id="exportAgentButton" class="ghost-button">导出会话</button>
-              </div>
-
-              <pre id="agentOutput" class="response-box">Agent 状态会显示在这里。</pre>
+          <section class="card control-shell">
+            <div class="segmented-control">
+              <button class="segment active" data-control-view="agent">Agent 会话</button>
+              <button class="segment" data-control-view="desktop">桌面交互</button>
+              <button class="segment" data-control-view="video">远程桌面</button>
             </div>
 
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <span class="eyebrow">视频流</span>
-                  <h3>远程桌面会话</h3>
+            <section class="control-panel active" data-control-panel="agent">
+              <div class="control-layout control-layout-agent">
+                <div class="card inset-card agent-session-card">
+                  <div class="card-header">
+                    <div>
+                      <span class="eyebrow">AI 执行</span>
+                      <h3>桌面 Agent 会话</h3>
+                    </div>
+                    <button id="saveAgentButton" class="ghost-button small">保存 AI 配置</button>
+                  </div>
+
+                  <div class="meta-pills compact-pills">
+                    <div class="meta-pill">
+                      <span class="meta-key">状态</span>
+                      <span id="agentStatusText">idle</span>
+                    </div>
+                    <div class="meta-pill">
+                      <span class="meta-key">会话</span>
+                      <span id="agentSessionIdText">-</span>
+                    </div>
+                    <div class="meta-pill">
+                      <span class="meta-key">待处理</span>
+                      <span id="agentPendingText">0</span>
+                    </div>
+                  </div>
+
+                  <p id="agentSessionHint" class="muted conversation-hint">还没有活动会话。发送第一条消息后会自动创建会话。</p>
+                  <div id="agentMessagesList" class="conversation-panel empty">当前还没有会话消息。</div>
+
+                  <label class="stacked conversation-composer">
+                    <span>发送给 Agent</span>
+                    <textarea id="agentPromptInput" rows="4" placeholder="给电脑端 Agent 发一个任务或追问"></textarea>
+                  </label>
+
+                  <div class="button-row wrap">
+                    <button id="runAgentButton" class="primary-button subtle">发送并运行</button>
+                    <button id="refreshAgentButton" class="ghost-button">刷新会话</button>
+                    <button id="stopAgentButton" class="ghost-button">停止当前回合</button>
+                    <button id="resetAgentButton" class="ghost-button">重置会话</button>
+                    <button id="agentLogsButton" class="ghost-button">查看日志</button>
+                    <button id="exportAgentButton" class="ghost-button">导出会话</button>
+                  </div>
+
+                  <pre id="agentOutput" class="response-box compact-box">Agent 状态会显示在这里。</pre>
+                </div>
+
+                <div class="control-side-stack">
+                  <div class="card inset-card">
+                    <div class="card-header">
+                      <div>
+                        <span class="eyebrow">AI 配置</span>
+                        <h3>Provider 与执行目录</h3>
+                      </div>
+                    </div>
+
+                    <div class="form-grid">
+                      <label>
+                        <span>AI Provider</span>
+                        <select id="agentProviderInput">
+                          <option value="codex">Codex</option>
+                          <option value="claude">Claude Code</option>
+                        </select>
+                      </label>
+                      <label class="full">
+                        <span>AI Executable</span>
+                        <input id="agentExecutableInput" type="text" placeholder="codex.cmd" />
+                      </label>
+                      <label class="full">
+                        <span>AI Args</span>
+                        <input id="agentArgsInput" type="text" placeholder="留空时使用内置默认参数" />
+                      </label>
+                      <label class="full">
+                        <span>AI CWD</span>
+                        <input id="agentCwdInput" type="text" placeholder="D:\\workspaces\\project" />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div class="card inset-card">
+                    <div class="card-header">
+                      <div>
+                        <span class="eyebrow">提示</span>
+                        <h3>更适合的用法</h3>
+                      </div>
+                    </div>
+                    <ul class="tip-list">
+                      <li>先给 Agent 一个明确任务，再继续追问。</li>
+                      <li>工作目录建议指向真实项目根目录。</li>
+                      <li>长输出可展开、复制或导出整段会话。</li>
+                    </ul>
+                  </div>
                 </div>
               </div>
+            </section>
 
-              <div class="button-row wrap">
-                <button id="openVideoButton" class="primary-button subtle">创建视频会话</button>
-                <button id="refreshVideoButton" class="ghost-button">刷新视频状态</button>
-                <button id="closeVideoButton" class="ghost-button">关闭视频会话</button>
-              </div>
+            <section class="control-panel" data-control-panel="desktop">
+              <div class="control-layout control-layout-desktop">
+                <div class="card inset-card">
+                  <div class="card-header">
+                    <div>
+                      <span class="eyebrow">交互</span>
+                      <h3>桌面输入调试</h3>
+                    </div>
+                  </div>
 
-              <pre id="videoOutput" class="response-box">视频会话状态会显示在这里。</pre>
-            </div>
-          </section>
+                  <div class="form-grid inline-two">
+                    <label>
+                      <span>X</span>
+                      <input id="moveXInput" type="text" value="960" />
+                    </label>
+                    <label>
+                      <span>Y</span>
+                      <input id="moveYInput" type="text" value="540" />
+                    </label>
+                  </div>
 
-          <section class="grid two-up">
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <span class="eyebrow">操作</span>
-                  <h3>桌面输入调试</h3>
+                  <div class="button-row wrap">
+                    <button id="moveButton" class="ghost-button">移动鼠标</button>
+                    <button id="clickButton" class="ghost-button">左键点击</button>
+                    <button id="screenshotButton" class="primary-button subtle">抓取截图</button>
+                  </div>
+
+                  <label class="stacked">
+                    <span>发送文本</span>
+                    <input id="typeInput" type="text" value="MetaAgent" />
+                  </label>
+                  <div class="button-row">
+                    <button id="typeButton" class="ghost-button">发送文本</button>
+                  </div>
+
+                  <label class="stacked">
+                    <span>按键</span>
+                    <input id="keyInput" type="text" value="ENTER" />
+                  </label>
+                  <div class="button-row">
+                    <button id="keyButton" class="ghost-button">发送按键</button>
+                  </div>
+
+                  <pre id="actionOutput" class="response-box compact-box">动作结果会显示在这里。</pre>
+                </div>
+
+                <div class="card inset-card">
+                  <div class="card-header">
+                    <div>
+                      <span class="eyebrow">静态预览</span>
+                      <h3>桌面截图</h3>
+                    </div>
+                  </div>
+
+                  <div class="preview-frame">
+                    <img id="screenshotImage" alt="桌面截图预览" />
+                  </div>
+                  <p id="screenshotMeta" class="muted">还没有抓取到桌面截图</p>
                 </div>
               </div>
+            </section>
 
-              <div class="form-grid inline-two">
-                <label>
-                  <span>X</span>
-                  <input id="moveXInput" type="text" value="960" />
-                </label>
-                <label>
-                  <span>Y</span>
-                  <input id="moveYInput" type="text" value="540" />
-                </label>
-              </div>
+            <section class="control-panel" data-control-panel="video">
+              <div class="control-layout control-layout-video">
+                <div class="card inset-card">
+                  <div class="card-header">
+                    <div>
+                      <span class="eyebrow">视频流</span>
+                      <h3>远程桌面会话</h3>
+                    </div>
+                  </div>
 
-              <div class="button-row wrap">
-                <button id="moveButton" class="ghost-button">移动鼠标</button>
-                <button id="clickButton" class="ghost-button">左键点击</button>
-                <button id="screenshotButton" class="primary-button subtle">抓取截图</button>
-              </div>
+                  <div class="button-row wrap">
+                    <button id="openVideoButton" class="primary-button subtle">创建视频会话</button>
+                    <button id="refreshVideoButton" class="ghost-button">刷新视频状态</button>
+                    <button id="closeVideoButton" class="ghost-button">关闭视频会话</button>
+                  </div>
 
-              <label class="stacked">
-                <span>发送文本</span>
-                <input id="typeInput" type="text" value="MetaAgent" />
-              </label>
-              <div class="button-row">
-                <button id="typeButton" class="ghost-button">发送文本</button>
-              </div>
+                  <pre id="videoOutput" class="response-box compact-box">视频会话状态会显示在这里。</pre>
+                </div>
 
-              <label class="stacked">
-                <span>按键</span>
-                <input id="keyInput" type="text" value="ENTER" />
-              </label>
-              <div class="button-row">
-                <button id="keyButton" class="ghost-button">发送按键</button>
-              </div>
+                <div class="card inset-card">
+                  <div class="card-header">
+                    <div>
+                      <span class="eyebrow">参数</span>
+                      <h3>截图与流设置</h3>
+                    </div>
+                  </div>
 
-              <pre id="actionOutput" class="response-box">动作结果会显示在这里。</pre>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div>
-                  <span class="eyebrow">预览参数</span>
-                  <h3>桌面截图与流参数</h3>
+                  <div class="form-grid inline-two">
+                    <label>
+                      <span>截图格式</span>
+                      <select id="streamFormatInput">
+                        <option value="jpeg">JPEG</option>
+                        <option value="png">PNG</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>质量</span>
+                      <input id="streamQualityInput" type="text" value="68" />
+                    </label>
+                    <label>
+                      <span>缩放 %</span>
+                      <input id="streamScaleInput" type="text" value="60" />
+                    </label>
+                    <label>
+                      <span>帧率</span>
+                      <input id="streamFpsInput" type="text" value="8" />
+                    </label>
+                  </div>
                 </div>
               </div>
-
-              <div class="form-grid inline-two">
-                <label>
-                  <span>截图格式</span>
-                  <select id="streamFormatInput">
-                    <option value="jpeg">JPEG</option>
-                    <option value="png">PNG</option>
-                  </select>
-                </label>
-                <label>
-                  <span>质量</span>
-                  <input id="streamQualityInput" type="text" value="68" />
-                </label>
-                <label>
-                  <span>缩放 %</span>
-                  <input id="streamScaleInput" type="text" value="60" />
-                </label>
-                <label>
-                  <span>帧率</span>
-                  <input id="streamFpsInput" type="text" value="8" />
-                </label>
-              </div>
-
-              <div class="preview-frame">
-                <img id="screenshotImage" alt="桌面截图预览" />
-              </div>
-              <p id="screenshotMeta" class="muted">还没有抓取到桌面截图</p>
-            </div>
+            </section>
           </section>
         </section>
 
         <section class="view-stack" data-view="logs">
           <section class="hero compact card">
             <div>
-              <span class="eyebrow">日志事件</span>
-              <h2>服务日志与最近事件</h2>
-              <p>所有事件和进程输出集中到这一页，不占总览页面的主要操作空间。</p>
+              <span class="eyebrow">诊断</span>
+              <h2>最近事件与服务输出</h2>
+              <p>这里只保留诊断信息。平时使用不需要停留在这里，主要操作已经移到其他页面。</p>
             </div>
           </section>
 
-          <section class="grid two-up">
+          <section class="grid diagnostic-grid">
             <div class="card">
               <div class="card-header">
                 <div>

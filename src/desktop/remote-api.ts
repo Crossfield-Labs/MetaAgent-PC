@@ -20,6 +20,7 @@ import {
   sendText,
 } from './control.js';
 import {
+  getDesktopAgentSnapshot,
   listDesktopAgentLogs,
   listDesktopAgentMessages,
   getDesktopAgentSession,
@@ -29,6 +30,7 @@ import {
   runDesktopAgent,
   sendDesktopAgentMessage,
   stopDesktopAgent,
+  subscribeDesktopAgentSnapshots,
   updateDesktopAgentSettings,
 } from './agent-manager.js';
 import {
@@ -237,7 +239,14 @@ function isAdminAuthorized(req: IncomingMessage): boolean {
   }
   const adminHeader = req.headers['x-desktop-admin-token'];
   const token = Array.isArray(adminHeader) ? adminHeader[0] : adminHeader;
-  return (token || '').trim() === DESKTOP_REMOTE_ADMIN_TOKEN;
+  if ((token || '').trim() === DESKTOP_REMOTE_ADMIN_TOKEN) {
+    return true;
+  }
+  const requestUrl = req.url ? new URL(req.url, 'http://localhost') : null;
+  return (
+    requestUrl?.searchParams.get('adminToken')?.trim() ===
+    DESKTOP_REMOTE_ADMIN_TOKEN
+  );
 }
 
 function isApiAuthorized(req: IncomingMessage): boolean {
@@ -567,6 +576,41 @@ export function startDesktopRemoteApi(): Promise<Server> {
                 Number.parseInt(url.searchParams.get('limit') || '80', 10),
               ),
             },
+          });
+          return;
+        }
+
+        if (
+          method === 'GET' &&
+          url.pathname === '/api/desktop/agent/events/stream'
+        ) {
+          res.writeHead(200, {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache, no-transform',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          });
+          sendSseEvent(res, 'agent-ready', {
+            ok: true,
+            data: getDesktopAgentSnapshot(),
+          });
+
+          const unsubscribe = subscribeDesktopAgentSnapshots((snapshot) => {
+            sendSseEvent(res, 'agent-snapshot', {
+              ok: true,
+              data: snapshot,
+            });
+          });
+          const keepAlive = setInterval(() => {
+            res.write(': keep-alive\n\n');
+          }, 15000);
+
+          req.on('close', () => {
+            clearInterval(keepAlive);
+            unsubscribe();
+            res.end();
           });
           return;
         }
